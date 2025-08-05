@@ -1,0 +1,69 @@
+{
+    "name": "eco2-normandy",
+    "version": "0.1.0",
+    "main": "./build/electron/main.js",
+    "author": {
+        "name": "TNP Consultants",
+        "url": "https://tnpconsultants.com"
+    },
+    "description": "A Streamlit app for the ECO2-Normandy project.",
+    "scripts": {
+        "dump": "dump-stlite-desktop-artifacts",
+        "serve": "cross-env NODE_ENV=production electron .",
+        "app:dir": "electron-builder --dir",
+        "app:dist": "electron-builder",
+        "postinstall": "electron-builder install-app-deps"
+    },
+    "build": {
+        "files": [
+            "build/**/*"
+        ],
+        "directories": {
+            "buildResources": "assets"
+        }
+    },
+    "devDependencies": {
+        "@stlite/desktop": "^0.69.2",
+        "cross-env": "^7.0.3",
+        "electron": "31.0.0",
+        "electron-builder": "^25.1.7"
+    },
+    "stlite": {
+        "desktop": {
+            "files": [
+                "./*.py",
+                "./**/*.py",
+                "./assets/**/*"
+            ],
+            "entrypoint": "./streamlit_app.py",
+            "dependencies": [
+                "numpy",
+                "pandas",
+                "altgraph",
+                "contourpy",
+                "cycler",
+                "colorama",
+                "fonttools",
+                "Jinja2",
+                "kiwisolver",
+                "MarkupSafe",
+                "matplotlib",
+                "packaging",
+                "pefile",
+                "pillow",
+                "plotly",
+                "pyparsing",
+                "python-dateutil",
+                "pytz",
+                "pywin32-ctypes",
+                "PyYAML",
+                "reportlab",
+                "setuptools",
+                "simpy",
+                "six",
+                "streamlit",
+                "tenacity",
+                "tzdata"]
+        }
+    }
+}

@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "eco2-normandy"
+version = "0.1.0"
+description = ""
+authors = ["Pierre Sein <pierre.sein@tnpconsultants.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+simpy = "^4.1.1"
+sphinx = "^8.1.0"
+black = {extras = ["jupyter"], version = "^24.10.0"}
+pytest = "^8.3.3"
+pandas = "^2.2.3"
+matplotlib = "^3.9.2"
+plotly = ">=6.0.0"
+openpyxl = "^3.1.5"
+colorama = "^0.4.6"
+streamlit = "^1.41.0"
+xlsxwriter = "^3.2.0"
+pyinstaller = "^6.12.0"
+pygame = "^2.6.1"
+pysimplegui = "^5.0.8.2"
+kaleido = "0.2.1"
+ortools = "^9.13.4784"
+paretoset = "^1.2.5"
+pymoo = "^0.6.1.5"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+notebook = "^7.2.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

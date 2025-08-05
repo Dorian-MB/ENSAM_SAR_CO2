@@ -1,0 +1,106 @@
+general:
+  num_period_per_hours: 1 # 0.5 for half an hour, 2 for 2 hours
+  m3_to_tons: 0.9
+  num_period: [43800] # 24 * 365 * 5
+  distances:
+    Le Havre:
+      Rotterdam: [263] # Rotterdam
+      Bergen: [739] # Bergen
+    
+weather_probability:
+  wind: [0.1]
+  waves: [0.1]
+  current: [0.1]
+
+KPIS:
+  fuel_price_per_ton: [510]  # Price per unit of fuel (e.g., euros per liter)
+  delay_penalty_per_hour: [200]  # Penalty cost for delay per hour (e.g., euros per hour)
+  co2_release_cost_per_ton: [100]  # Cost of releasing CO2: euros per m3
+  storage_cost_per_m3: [30] 
+
+factory:
+  name: [Le Havre]
+  capacity_max: [28500] # 5700 * 3 # m3
+  number_of_tanks: [5]
+  cost_per_tank: [16780000]
+  initial_capacity: [15000]
+  sources:
+    - name: [source 1]
+      annual_production_capacity: [240000]
+      maintenance_rate: [0.1]
+    - name: [source 2]
+      annual_production_capacity: [240000]
+      maintenance_rate: [0.1]
+    - name: [source 3]
+      annual_production_capacity: [240000]
+      maintenance_rate: [0.1]
+    - name: [source 4]
+      annual_production_capacity: [240000]
+      maintenance_rate: [0.1]
+    - name: [source 5]
+      annual_production_capacity: [240000]
+      maintenance_rate: [0.1]
+  docks: [1]
+  pbs_to_dock: [2]
+  scheduled_maintenance_period_major: [3]
+  scheduled_maintenance_period_minor: [1.5]
+  unscheduled_maintenance_prob: [0.01]
+  pump_rate: [1000]
+  pump_in_maintenance_rate: [500]
+  loading_time: [3]
+  weather_waiting_time: [1]
+  pilot_waiting_time: [2]
+  dock_waiting_time: [3.5]
+  lock_waiting_time: [2]
+  transit_time_to_dock: [5.3]
+  transit_time_from_dock: [5.3]
+  storage_cost_per_m3: [35]
+
+storages:
+  - name: [Rotterdam]
+    capacity_max: [27000]
+    cost_per_tank: [5000]
+    number_of_tanks: [1800000000]
+    consumption_rate: [1000]
+    maintenance_rate: [0.2]
+    docks: [1]
+    pbs_to_dock: [2]
+    pump_rate: [10000]
+    pump_in_maintenance_rate: [5000]
+    lock_waiting_time: [0]
+    unloading_time: [3]
+    transit_time_to_dock: [3.3]
+    transit_time_from_dock: [3.3]
+    storage_cost_per_m3: [35]
+
+ships:
+  - name: [Ship 1]
+    capacity_max: [18000]
+    speed_max: [15]
+    init: 
+      state: [DOCKED]
+      destination: [Le Havre]
+      distance_to_go: [0]
+      capacity: [0]
+    immobilization_cost_per_hour: [45]
+    staff_cost_per_hour: [130]
+    usage_cost_per_hour: [300]
+    ship_buying_cost: [135500000]
+    fuel_consumption_per_day: [20]
+    fixed_storage_destination: [Rotterdam]
+  
+allowed_speeds:
+  wind: 
+    "6": [12]
+    "10": [10]
+    "20": [0]
+  
+  wave: 
+    "6": [12]
+    "10": [10]
+    "20": [0]
+    
+  current: 
+    "6": [12]
+    "10": [10]
+    "20": [0]
