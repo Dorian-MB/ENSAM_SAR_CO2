@@ -311,7 +311,7 @@ class GAModel:
             return {
                 'solution': self.solutions.iloc[best_front_idx],
                 'objectives': F[best_idx].tolist(),
-                'score': scores[best_front_idx]
+                'score': scores.iloc[best_front_idx]
             }
         else:
             return {

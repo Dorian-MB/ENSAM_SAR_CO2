@@ -257,10 +257,12 @@ if __name__ == "__main__":
 
     logger = Logger()
     model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
+    # model = CpModel(config)
     optimizer = Optimizer(model=model, verbose=1, enable_cprofile=False)
+    # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
     optimizer.optimize()
     optimizer.log_score()
-    # optimizer.save_solution(dir=str(saved_folder))
+    optimizer.save_solution(dir=str(saved_folder))
 
     yesno = input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
     if yesno == "y":
