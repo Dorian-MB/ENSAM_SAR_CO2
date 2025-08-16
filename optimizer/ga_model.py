@@ -1,7 +1,8 @@
 from pathlib import Path
 import sys
 from pprint import pprint
-sys.path.insert(0, str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 import numpy as np
 import pandas as pd
@@ -244,16 +245,10 @@ class GAModel:
         solutions = []
         results = []
 
-        if self.multi_obj:
-            nds = NonDominatedSorting()
-            front = nds.do(F, only_non_dominated_front=True)
-        else:
-            front = [int(np.argmin(F[:, 0]))]
-
         # Calculer les scores pondérés pour les solutions du front de Pareto
-        normed_weights = self.normalize_weight(self.weights)
-        for idx in front:
-            score = sum(w * v for w, v in zip(normed_weights, F[idx]))
+        F_norm = self.normalize(F)
+        for idx in self.front_idx:
+            score = sum(w * v for w, v in zip(self.weights, F_norm[idx]))
             x = X[idx]
             sol = self.cfg_builder.decode_and_repair(x, self.problem.max_ships)
             solutions.append({'solution'+str(idx): sol})
@@ -265,6 +260,36 @@ class GAModel:
         idx, data = zip(*[(next(iter(r)), next(iter(r.values()))) for r in results])
         self.scores = pd.DataFrame(data, index=idx, columns=self.problem.metrics_keys + ['score'])
 
+    @property
+    def front_idx(self):
+        if not self.istrain:
+            raise RuntimeError('No results available. Call solve() first.')
+        F = self.res.F
+        if self.multi_obj:
+            nds = NonDominatedSorting()
+            front = nds.do(F, only_non_dominated_front=True)
+        else:
+            front = [int(np.argmin(F[:, 0]))]
+        return front
+
+    @property
+    def pareto_front(self):
+        if not self.istrain:
+            raise RuntimeError('No results available. Call solve() first.')
+        return pd.DataFrame([self.res.F[idx] for idx in self.front_idx])
+
+    def _dynamic_normalize(self):
+        abs_bounds = compute_dynamic_bounds(self.problem.kpis_list)
+        return pd.DataFrame(abs_bounds, index=["min", "max"]).T.to_dict(orient='list')
+        
+    def normalize(self, F):
+        if self.absolute_bounds:
+            bounds = self.absolute_bounds
+        else:
+            bounds = self._dynamic_normalize()
+        return [ [ (f-mn)/(mx - mn) for f, mx, mn in zip(fline, bounds['max'], bounds['min'])  ]
+                for fline in F ] 
+
     def data_to_saved(self):
         if self.istrain is False:
             self.log.warning(Fore.RED+"No solutions or results available. Call solve() first."+Fore.RESET)
@@ -272,22 +297,9 @@ class GAModel:
         return {
             'solutions_ga': self.solutions,
             'scores_ga': self.scores,
-        }    
-
-    def _dynamic_normalize(self):
-        abs_bounds = compute_dynamic_bounds(self.problem.kpis_list)
-        return pd.DataFrame(abs_bounds, index=["min", "max"]).T.to_dict(orient='list')
-        
-    def normalize_weight(self, weights=None):
-        weights = weights if weights is not None else self.weights
-        if self.absolute_bounds:
-            bounds = self.absolute_bounds
-        else:
-            bounds = self._dynamic_normalize()
-        return [ w/(mx - mn) for w, mx, mn in zip(weights,
-                                                bounds['max'],
-                                                bounds['min']) ] 
-
+            'pareto_ga': self.pareto_front,
+        }
+    
     @property
     def best_solution(self):
         return self._get_best()['solution']
@@ -340,18 +352,18 @@ class GAModel:
             self.log.error(Fore.RED+f"Simulation failed:"+Fore.RESET) 
             raise e
 
-    def evaluate(self, cfg:dict, clip:bool=True):
-        if self.istrain is False:
+    def evaluate(self, cfg:dict, use_best_sol:bool=True, clip:bool=True):
+        if self.istrain is False and use_best_sol is True:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
             return None
-        best_sol = self.best_solution
-        cfg = ConfigBuilderFromSolution(cfg).build(best_sol)
+        if use_best_sol:
+            cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
         sim = self._run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
             return None
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
-        metrics["score"] =  sum( w * m for w, m in zip(self.normalize_weight(), metrics.values()))
+        metrics["score"] =  sum( w * m for w, m in zip(self.normalize(), metrics.values()))
         return metrics
 
 

@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
-sys.path.append(str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.append(str(Path.cwd()))
 
 import pandas as pd
 from colorama import Fore
@@ -15,8 +16,8 @@ metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfil
 metrics_weight = [20, 20, 15, 30]
 
 class CpModel(cp_model.CpModel):
-    def __init__(self, config, metrics_keys=metrics_keys, metrics_weight=metrics_weight,
-                 algorithm:str="SearchForAllSolutions",
+    def __init__(self, config, algorithm:str="SearchForAllSolutions",
+                 metrics_keys=metrics_keys, metrics_weight=metrics_weight,
                  logger=None, verbose=1, boundaries=None, *args, **kwargs):     
         super().__init__(*args, **kwargs)
         self.base_config = config
@@ -29,6 +30,8 @@ class CpModel(cp_model.CpModel):
         self.algorithm_name = algorithm 
         self.Algoritm = self._get_alogorithm(algorithm)
         self.callback = None
+        self.callback_vars = []
+        self.surrogate_vars = []
         self.vars = {}
         self.istrain = False
         self.max_time_in_seconds = None
@@ -122,7 +125,7 @@ class CpModel(cp_model.CpModel):
         
         self.callback_vars = flatten(self.vars.values())
 
-    def _add_surrogate_objectives(self):
+    def _add_heuristic_objectives(self):
         ship_cap_min, ship_cap_max = self.boundaries.ship_capacity_min, self.boundaries.ship_capacity_max
         max_num_ships = self.boundaries.max_num_ships
         min_speed, max_speed = self.boundaries.ship_speed_min, self.boundaries.ship_speed_max
@@ -192,16 +195,16 @@ class CpModel(cp_model.CpModel):
                                     metrics_keys=metrics_keys or self.metrics_keys,
                                     metrics_weight=metrics_weight or self.metrics_weight,
                                     verbose=verbose or self.verbose)
-        if max_time_in_seconds: 
-            self.solver.parameters.max_time_in_seconds = max_time_in_seconds
+        if isinstance(max_time_in_seconds, (int, float)):
+            self.solver.parameters.max_time_in_seconds = int(max_time_in_seconds)
 
     def HeuristicSolve(self, max_time_in_seconds=30):
             """Phase 1: CP‐only solve with surrogate objective."""
-            self._add_surrogate_objectives()
+            self._add_heuristic_objectives()
 
             # set a short time limit
             solver = cp_model.CpSolver()
-            solver.parameters.max_time_in_seconds = max_time_in_seconds
+            solver.parameters.max_time_in_seconds = int(max_time_in_seconds)
 
             # (optional) you can hint from a previous solve here
 
@@ -299,16 +302,18 @@ class CpModel(cp_model.CpModel):
             "pareto_front": self.pareto_front,
         }
 
-    def evaluate(self, cfg:dict, clip:bool=True)->pd.DataFrame:
+    def evaluate(self, cfg:dict, use_best_sol:bool=True, clip:bool=True)->pd.DataFrame:
         """
         Evaluate the configuration.
         This methode is meant to be used after the model has been trained and the callback normalization is set.
         """
-        if self.istrain is False:
+        if self.istrain is False and use_best_sol is True:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
             return None
-        best_sol = self.best_solution
-        cfg = ConfigBuilderFromSolution(cfg).build(best_sol)
+        if use_best_sol:
+            cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
+        elif self.callback is None:
+            self._set_callback()
         sim = self.callback.run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)

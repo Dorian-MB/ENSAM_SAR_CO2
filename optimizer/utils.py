@@ -132,7 +132,22 @@ def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
                                          [cost, wasted_production_over_time, waiting_time, 1-factory_filling_rate])}
         return metrics
 
-## Config builder for simulation ####################################################################
+def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None]:
+    """
+    Récupère tous les scénarios à partir d'un fichier YAML.
+    """
+    ignore_keys = {"KPIS", "general", "allowed_speeds", "weather_probability"}
+    for path in Path(path).glob("**/*.yaml"):
+        config = get_simlulation_variable(str(path))[0]
+        if ignore_cte:
+            for key in ignore_keys:
+                config.pop(key, None)
+        if path.is_file() and path.suffix == '.yaml':
+            yield path, config
+
+
+########## Usefull classes ##########
+# Config builder for simulation 
 class ConfigBuilderFromSolution:
     def __init__(self, base_config, sol=None):
         self.base_config = base_config
@@ -233,22 +248,7 @@ class ConfigBuilderFromSolution:
 
         return sol
 
-def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None]:
-    """
-    Récupère tous les scénarios à partir d'un fichier YAML.
-    """
-    ignore_keys = {"KPIS", "general", "allowed_speeds", "weather_probability"}
-    for path in Path(path).glob("**/*.yaml"):
-        config = get_simlulation_variable(str(path))[0]
-        if ignore_cte:
-            for key in ignore_keys:
-                config.pop(key, None)
-        if path.is_file() and path.suffix == '.yaml':
-            yield path, config
-
-
-## Usefull classes ####################################################################
-
+# Logger for multiprocessing (base logging python package throw error while multiprocessing)
 class LoggerForMultiprocessing:
     """
     Substitue à un logger pour les environnements de multiprocessing.
@@ -270,7 +270,7 @@ class LoggerForMultiprocessing:
     def critical(self, message: str):
         print("CRITICAL: " + message)
     
-
+# No profiler class (cprofile)
 class NoProfiler:
     """
     A no-op profiler class that does nothing.
