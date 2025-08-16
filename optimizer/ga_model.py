@@ -142,7 +142,7 @@ class GAModel:
         if path.exists():
             self.log.info(Fore.GREEN+f"Using absolute bounds for normalization."+Fore.RESET)
             with open(path, 'r') as f:
-                self.absolute_bounds = pd.read_csv(f, index_col="bounds").T.to_dict(orient='list')
+                self.absolute_bounds = pd.read_csv(f, index_col="bounds").T #.to_dict(orient='list')
         else:
             self.log.info(Fore.LIGHTRED_EX+f"Using dynamic bounds for normalization."+Fore.RESET)
             self.absolute_bounds = None
@@ -282,13 +282,17 @@ class GAModel:
         abs_bounds = compute_dynamic_bounds(self.problem.kpis_list)
         return pd.DataFrame(abs_bounds, index=["min", "max"]).T.to_dict(orient='list')
         
-    def normalize(self, F):
-        if self.absolute_bounds:
+    def normalize(self, F, get_df=False):
+        if self.absolute_bounds is not None:
             bounds = self.absolute_bounds
         else:
             bounds = self._dynamic_normalize()
-        return [ [ (f-mn)/(mx - mn) for f, mx, mn in zip(fline, bounds['max'], bounds['min'])  ]
-                for fline in F ] 
+
+        F = pd.DataFrame(F, columns=self.problem.metrics_keys, index=[f"solution_{i}" for i in range(len(F))])
+        F = (F - bounds['min']) / (bounds['max'] - bounds['min'])
+        if not get_df:
+            return F.values.tolist()
+        return F
 
     def data_to_saved(self):
         if self.istrain is False:
@@ -363,7 +367,8 @@ class GAModel:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
             return None
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
-        metrics["score"] =  sum( w * m for w, m in zip(self.normalize(), metrics.values()))
+        normed_metrics = self.normalize([metrics.values()], get_df=True)
+        metrics["score"] = normed_metrics.apply(lambda row: sum(w * row[k] for k, w in zip(self.problem.metrics_keys, self.weights)), axis=1).iloc[0]
         return metrics
 
 
