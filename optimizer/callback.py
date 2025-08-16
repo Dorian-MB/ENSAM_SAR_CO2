@@ -79,7 +79,7 @@ class SimCallback(CpSolverSolutionCallback):
     def surrogate_dynamic_bounds(self):
         return compute_dynamic_bounds(self.surrogate_met)
 
-    def _update_pareto_front(self, metrics:list|dict, front:ParetoFront, front_name:str="")->bool:
+    def _add_metrics_to_front(self, metrics:list|dict, front:ParetoFront, front_name:str="")->bool:
         """Met à jour le front de Pareto avec les nouvelles métriques.
 
         Args:
@@ -96,7 +96,7 @@ class SimCallback(CpSolverSolutionCallback):
         # Si cette solution est dominée par le front de pareto, on skip
         if front.is_dominated(metrics):
             msg = f"Solution {self.solutions_tested} dominée par le {front_name}, on passe a la suivante."
-            if self.verbose: self.log.info(Fore.YELLOW + msg + Fore.RESET)
+            if self.verbose > 2: self.log.info(Fore.YELLOW + msg + Fore.RESET)
             return False # passe à la solution suivante
         # Sinon on l’ajoute au front de pareto et on simule
         front.add(metrics, self.evals)
@@ -116,11 +116,10 @@ class SimCallback(CpSolverSolutionCallback):
 
         sur_met = surrogate_metrics(sol, self.base_config)
         self.surrogate_met.append(sur_met)
-        front_name = "surrogate_front"
-        if not self._update_pareto_front(self.surrogate_met, self.surrogate_front, front_name=front_name):
+        if not self._add_metrics_to_front(self.surrogate_met, self.surrogate_front, front_name="surrogate_front"):
             return
 
-        if self.verbose:
+        if self.verbose > 2:
             self.log.info(f"{Fore.LIGHTMAGENTA_EX}# Éval n°{self.evals}/{self.max_evals}: Total of {self.solutions_tested} sol tested: {Fore.RESET}\n"
                 f"\t-ship:{sol['num_ship']}-ship-capa:{sol['ship_capacity']}-speed:{sol['ship_speed']}\n"
                 f"\t-storge:{sol['num_storages']}")
@@ -131,11 +130,10 @@ class SimCallback(CpSolverSolutionCallback):
             return
         metrics = self.calculate_performance_metrics(cfg, sim)
         self.kpis_list.append(metrics)
-        front_name = "pareto_front"
-        if self._update_pareto_front(self.kpis_list, self.pareto_front, front_name=front_name):
+        if not self._add_metrics_to_front(self.kpis_list, self.pareto_front, front_name="pareto_front"):
             return
 
-        if self.verbose:
+        if self.verbose > 2:
             self.log.info(Fore.GREEN +
                   f"→ Coût total combiné = {self.kpis_list[-1]['cost']:,.0f} €\n"
                   f"\t→ production gaspillée = {self.kpis_list[-1]['wasted_production_over_time']:,.0f} m^3\n"

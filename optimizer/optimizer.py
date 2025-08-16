@@ -2,15 +2,14 @@ import time
 import cProfile, pstats
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 import numpy as np
 import pandas as pd
 from colorama import Fore
 
 from eco2_normandy.logger import Logger
-from eco2_normandy.tools import get_simlulation_variable
 from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler
 
 class Optimizer:
@@ -44,30 +43,36 @@ class Optimizer:
         self.model.callbacks.base_config = base_config
         self.cfg_builder = ConfigBuilderFromSolution(base_config)
     
-    def evaluate_on_all_scenarios(self, num_period:int=1000, 
-                                  path:str="scenarios/", 
-                                  limite:int=None,
-                                  clip:bool=True)->pd.DataFrame:
+    def evaluate(self, num_period:int=1000, 
+                        path:str="scenarios/", 
+                        use_best_sol:bool=True,
+                        scenario_filter:str="phase",
+                        limite:int=None,
+                        clip:bool=True)->pd.DataFrame:
         """Evalue all scenarios in the given path.
 
         Args:
             num_period (int, optional): number of simulation loop. Defaults to 1000.
             path (str, optional): path of scenarios. Defaults to "scenarios/".
+            use_best_sol (bool, optional): whether to use the best solution for evaluation. Defaults to True. False allow to use default scenario.
+            scenario_filter (str, optional): filter for scenarios directory. Defaults to "phase".
             limite (int, optional): limit of scenario tested, None:test all scenarios found. Defaults to None.
 
         Returns:
             pd.DataFrame: MultiIndex DataFrame with results of the evaluation.
         """
-        if not self.model.istrain:
+        if self.model.istrain is False and use_best_sol is True:
             self.log.info("model not trained yet, `Optimizer.optimize()`")
             return
         results = {}
         i = 1
         for s_path, scenario in get_all_scenarios(path):
+            if scenario_filter and scenario_filter not in str(s_path.parent):
+                continue
             if self.verbose: self.log.info(Fore.GREEN + f"=== Evaluating scenario: {Fore.CYAN}{s_path.resolve()}{Fore.GREEN} ==="+ Fore.RESET)
             scenario['eval_name'] = s_path.name
             scenario["general"]["num_period"] = num_period
-            results[s_path.name] = self.model.evaluate(scenario, clip)
+            results[s_path.name] = self.model.evaluate(scenario, use_best_sol=use_best_sol, clip=clip)
             if limite and limite <= i and self.verbose:
                 self.log.info(Fore.YELLOW + f"=== Limiting evaluation to {limite} scenarios ===" + Fore.RESET)
                 break
@@ -122,7 +127,7 @@ class Optimizer:
             n (int, optional): n first function calls. Defaults to 10.
 
         Returns:
-            _type_: _description_
+            _type_: None
         """
         assert init + close + result <= 1, "Only one of init, close, or result can be True."
         if init:
@@ -131,7 +136,7 @@ class Optimizer:
             self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
             self.profiler = cProfile.Profile()
             self.profiler.enable()
-            return self.profiler
+            return 
                 
         profiler = profiler or self.profiler
         if close and self.enable_cprofile:
@@ -227,6 +232,7 @@ if __name__ == "__main__":
     import argparse
     from optimizer.cp_model import CpModel
     from optimizer.ga_model import GAModel
+    from eco2_normandy.tools import get_simlulation_variable
     parser = argparse.ArgumentParser(
         description="Solve the scheduling model with a configurable number of CP-SAT iterations."
     )

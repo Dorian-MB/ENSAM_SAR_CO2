@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -126,7 +127,9 @@ def generate_combinations(parameter_ranges) -> list:
         return [parameter_ranges]
 
 def get_simlulation_variable(file_path):
-    with open(file_path, "r") as file:
+    path = (Path.cwd() / file_path ).resolve()
+    print(path)
+    with open(str(path), "r") as file:
         parameter_ranges = yaml.safe_load(file)
     return generate_combinations(parameter_ranges)
 
