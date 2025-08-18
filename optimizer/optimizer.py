@@ -87,7 +87,7 @@ class Optimizer:
         return self.model.evaluate(scenario)
 
     @staticmethod
-    def evaluate_defaults_scenarios(num_period=2000, path:str="scenarios/")->pd.DataFrame:
+    def evaluate_defaults_scenarios(num_period=2000, path:str="scenarios", scenario_filter:str="phase",)->pd.DataFrame:
         """Evaluate the default scenario.
 
         Args:
@@ -98,6 +98,8 @@ class Optimizer:
         """
         results = []
         for s_path, scenario in get_all_scenarios(path):
+            if scenario_filter and scenario_filter not in str(s_path.parent):
+                continue
             scenario['eval_name'] = s_path.name
             scenario["general"]["num_period"] = num_period
             r = evaluate_single_scenario(scenario)
