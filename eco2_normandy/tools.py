@@ -128,7 +128,6 @@ def generate_combinations(parameter_ranges) -> list:
 
 def get_simlulation_variable(file_path):
     path = (Path.cwd() / file_path ).resolve()
-    print(path)
     with open(str(path), "r") as file:
         parameter_ranges = yaml.safe_load(file)
     return generate_combinations(parameter_ranges)
