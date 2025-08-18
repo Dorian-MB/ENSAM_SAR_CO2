@@ -13,18 +13,16 @@ from eco2_normandy.weather import WeatherStation
 from eco2_normandy.stateSaver import StateSaver
 from eco2_normandy.logger import Logger
 from eco2_normandy.tools import data_to_dataframe
-from KPIS import LiveKpisGraphsGenerator
+from KPIS import LiveKpisGraphsGenerator, Kpis
 
 # --- Classe Simulation (corrigée pour réintégrer collecte de données et KPI) ---
 class Simulation:
     n_simu = 0
-    def __init__(self, config_name=None, config=None, data_df=None, kpis=None, generator=None, logger=None, verbose=True):
+    def __init__(self, config:dict=None, config_name:str=None, generator=None, logger=None, verbose=True):
         Simulation.n_simu += 1
         self.logger = logger or Logger()
         self.config_name = config_name
         self.config = config
-        self.data_df = data_df
-        self.kpis = kpis
         self.generator = generator
         self.verbose = verbose
         self._init_simulation()
@@ -97,20 +95,17 @@ class Simulation:
             storages=self.storages, factory=self.factory, ships=self.ships
         )
 
-    def get_kpis_generator(self):
-        if self.generator:
-            self.generator.upload_data(self.result)
-            return self.generator
-        return LiveKpisGraphsGenerator(
+    def get_kpis_generator(self, live=True):
+        if live:
+            return LiveKpisGraphsGenerator(
+                self.result,
+                config=self.config,
+            )
+        return Kpis(
             self.result,
             config=self.config,
         )
 
-    def generate_kpis(self):
-        if self.generator is None:
-            self.get_kpis_generator()
-        # self.generator._trip_analysis()
-        self.kpis = self.generator.generate_kpis_graphs()
 
 
 if __name__ == "__main__":
