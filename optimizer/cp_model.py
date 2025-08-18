@@ -239,8 +239,7 @@ class CpModel(cp_model.CpModel):
         self._set_callback(Callback=Callback, **kwargs)
         self.solver.parameters.enumerate_all_solutions = True
         self.solver.solve(self, self.callback)
-        self.callback._normalize_metrics()  # Normalize metrics before computing scores
-        self.callback._compute_raw_scores()
+        self.callback.set_results()
     
     def solve(self, *args, **kwargs):
         try:
@@ -252,7 +251,7 @@ class CpModel(cp_model.CpModel):
     def log_score(self): 
         best_score = self.best_score
         if hasattr(self, "heuristic_sol"):
-            score_heuristic = self.evaluate(self.cfg_builder.build_heuristic(self.heuristic_sol))
+            score_heuristic = self.evaluate(self.cfg_builder.build_heuristic(self.heuristic_sol)).iloc[0]
             self.log.info(Fore.GREEN + "=== Heuristic solution ===" + Fore.RESET)
             self.log.info(score_heuristic)
             self.log.info(Fore.BLUE + f"Score heuristic: {score_heuristic['score']:,.0f}" + Fore.RESET)
@@ -302,25 +301,22 @@ class CpModel(cp_model.CpModel):
             "pareto_front": self.pareto_front,
         }
 
-    def evaluate(self, cfg:dict, use_best_sol:bool=True, clip:bool=True)->pd.DataFrame:
+    def evaluate(self, cfg:dict, clip:bool=True)->pd.DataFrame:
         """
         Evaluate the configuration.
         This methode is meant to be used after the model has been trained and the callback normalization is set.
         """
-        if self.istrain is False and use_best_sol is True:
+        if self.istrain is False:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
             return None
-        if use_best_sol:
-            cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
-        elif self.callback is None:
-            self._set_callback()
+        cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
         sim = self.callback.run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
             return None
         metrics = self.callback.calculate_performance_metrics(cfg, sim)
-        norm_metrics = pd.DataFrame(self.callback.dynamic_normalize_metrics(metrics=metrics, clip=clip), index=[0])
-        metrics["score"] = self.callback._compute_df_score(norm_metrics).values[0]
+        norm_metrics = self.callback.normalize(metrics)
+        metrics["score"] = self.callback.normalize.compute_score(norm_metrics)
         return metrics
 
 

@@ -67,7 +67,6 @@ class Optimizer:
             self.log.info("model not trained yet, `Optimizer.optimize()`")
             return
         results = []
-        i= 1
         for s_path, scenario in get_all_scenarios(path):
             if scenario_filter and scenario_filter not in str(s_path.parent):
                 continue
@@ -76,10 +75,7 @@ class Optimizer:
             r = self.model.evaluate(scenario)
             r.index = pd.Index([s_path.name])
             results.append(r)
-            if i > 3:
-                break
-            i += 1
-        return pd.concat(results, axis=0).sort_index(inplace=True)
+        return pd.concat(results, axis=0).sort_index()
 
     @staticmethod
     def evaluate_default_scenario(num_period=2000, path:str="scenarios/")->pd.DataFrame:
@@ -98,7 +94,7 @@ class Optimizer:
             r = evaluate_single_scenario(scenario)
             r.index = pd.Index([s_path.name])
             results.append(r)
-        return pd.concat(results).sort_index(inplace=True)
+        return pd.concat(results).sort_index()
 
     def plot_pareto(self, scores:pd.DataFrame=None, figsize:tuple=(15, 15))->None:
         """Plot the pareto front of the optimization.
