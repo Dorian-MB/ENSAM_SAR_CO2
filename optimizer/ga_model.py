@@ -294,12 +294,10 @@ class GAModel:
     def log_score(self):
         if self.res is None:
             raise RuntimeError('No results available. Call solve() first.')
-        
-        best = self._get_best()
-        objectives = {k: round(v,2) for k, v in zip(self.problem.metrics_keys, best['objectives'])}
-        self.log.info(f"Best solution score {best['score']}")
-        self.log.info(f"Objectives: {objectives}")
-        self.log.info(f"Solution: {best['solution']}")
+
+        self.log.info(Fore.LIGHTCYAN_EX + f"Best solution score {Fore.RESET}{self.best_score['score']}")
+        self.log.info(Fore.LIGHTCYAN_EX + f"Objectives: {Fore.RESET}{self.best_score.drop('score')}")
+        self.log.info(Fore.LIGHTCYAN_EX + f"Solution: {Fore.RESET}{self.best_solution}")
 
     def _run_simulation(self, cfg):
         """Run the simulation with the given configuration."""
