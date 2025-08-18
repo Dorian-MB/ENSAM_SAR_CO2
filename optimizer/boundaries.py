@@ -3,9 +3,17 @@ from pathlib import Path
 from collections import defaultdict
 import numbers
 import yaml
-sys.path.append(str(Path.cwd()))
-from optimizer.utils import get_all_scenarios
+import pandas as pd
+from IPython.display import display
+
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
+    
+from optimizer.utils import get_all_scenarios, calculate_performance_metrics
 from eco2_normandy.logger import Logger
+from eco2_normandy.simulation import Simulation
+from KPIS import Kpis
+from KPIS.utils import compute_dynamic_bounds
 from colorama import Fore
 
 
@@ -79,14 +87,14 @@ class ConfigBoundaries:
     It loads the boundaries from a YAML file or generates them from the scenarios in the given path.
     It store the boundaries to our model variables 
     """
-    def __init__(self, boundaries_yaml="boundaries.yaml", scenarios_path="scenarios/", logger=None):
+    def __init__(self, boundaries_yaml="boundaries.yaml", scenarios_path="scenarios/", logger=None, verbose=1):
         self.log = logger or Logger()
-        path = Path.cwd() / "optimizer" / boundaries_yaml
-        self.log.info(Fore.YELLOW+f"Loading boundaries from {Fore.CYAN+str(path.resolve())}"+Fore.RESET)
+        path = Path.cwd() / "saved" / boundaries_yaml
+        if verbose > 0: self.log.info(Fore.YELLOW+f"Loading boundaries from {Fore.CYAN+str(path.resolve())}"+Fore.RESET)
         if path.is_file():
             with open(path, 'r') as f:
                 self.boundaries = yaml.safe_load(f)
-                self.log.info(Fore.GREEN+f"Boundaries loaded"+Fore.RESET)
+                if verbose > 0: self.log.info(Fore.GREEN+f"Boundaries loaded"+Fore.RESET)
         else:
             self.log.info(Fore.LIGHTRED_EX+f"{boundaries_yaml} not found,{Fore.YELLOW} generating boundaries from scenarios in {scenarios_path}"+Fore.RESET)
             init_configs(scenarios_path)
@@ -99,7 +107,8 @@ class ConfigBoundaries:
         self.ship_speed_min, self.ship_speed_max = int(self.boundaries.get("ships.speed_max")["min"]), int(self.boundaries.get("ships.speed_max")["max"])
         self.initial_destination = 2 # 0=factory, 1=Rotterdam, 2=Bergen 
         self.fixed_storage_destination = 1  # 1=Bergen, 0=Rotterdam 
-        
+        self.verbose = verbose
+
     def __repr__(self):
         return f"""ConfigBoundaries(max_num_storages={self.max_num_storages}, 
         ship_capacity_min={self.ship_capacity_min}, 
@@ -109,19 +118,61 @@ class ConfigBoundaries:
         ship_speed_max={self.ship_speed_max})"""
 
 
+class KpisBoundaries:
+    def __init__(self, kpis_boundaries_file:str="kpis_bounds.csv", verbose:int=1, logger=None):
+        self.verbose = verbose
+        self.log = logger or Logger()
+        self.path = Path.cwd() / "saved" / kpis_boundaries_file
+        if self.path.exists() and self.path.is_file():
+            if verbose > 0: self.log.info(Fore.GREEN+f"Loading KPIs boundaries from {Fore.CYAN+str(self.path.resolve())}"+Fore.RESET)
+            self.kpis_boundaries = pd.read_csv(str(self.path), index_col="bounds").T
+        else:
+            if verbose > 0: self.log.info(Fore.LIGHTRED_EX+f"{kpis_boundaries_file} not found, generating KPIs boundaries from scenarios"+Fore.RESET)
+            self.kpis_boundaries = self._compute_kpis_boundaries()
+            
+    def _compute_kpis_boundaries(self):
+        """
+        Compute the boundaries for KPIs from the scenarios.
+        """
+        scenarios = get_all_scenarios("scenarios/")
+        self._kpis_list = []
+        for path, config in scenarios:
+            config["general"]["num_period"] = 2000  # Set to 2000 for reproducibility and stable kpis results
+            sim = Simulation(config, verbose=False)
+            sim.run()
+            self._kpis_list.append(calculate_performance_metrics(config, sim))
+            if self.verbose > 1: 
+                self.log.info(Fore.CYAN + f"{path.name}" + Fore.RESET)
+                display(pd.DataFrame(self._kpis_list[-1], index=[0]))
+                print()
+
+        bounds = compute_dynamic_bounds(self._kpis_list)
+        bounds_df = pd.DataFrame(bounds, index=["min", "max"])
+        bounds_df.index.name = "bounds" 
+        bounds_df.underfill_rate = bounds_df.underfill_rate.clip(lower=0, upper=1)  # Clip underfilling rate to [0, 1]
+        bounds_df.to_csv(self.path, index=True)
+        return bounds_df
+
+def get_kpis_boundaries():
+    return KpisBoundaries().kpis_boundaries
+
 if __name__ == "__main__":
+    from pprint import pprint
+    from IPython.display import display
+    # init_configs()
 
-    init_configs()
+    # boundaries = get_boundaries()
+    # with open("saved/boundaries.yaml", "w", encoding="utf-8") as f:
+    #     yaml.dump(boundaries, f, allow_unicode=True, sort_keys=True)
+    # print("\nLes bornes ont été sauvegardées dans boundaries.yaml")
 
-    boundaries = get_boundaries()
-    with open("solver/boundaries.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(boundaries, f, allow_unicode=True, sort_keys=True)
-    print("\nLes bornes ont été sauvegardées dans boundaries.yaml")
-
-    unique_values = get_all_values()
-    with open("solver/boundaries_range.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(unique_values, f, allow_unicode=True, sort_keys=True)
-    print("\nLes valeurs numériques uniques ont été sauvegardées dans boundaries_range.yaml")
+    # unique_values = get_all_values()
+    # with open("saved/boundaries_range.yaml", "w", encoding="utf-8") as f:
+    #     yaml.dump(unique_values, f, allow_unicode=True, sort_keys=True)
+    # print("\nLes valeurs numériques uniques ont été sauvegardées dans boundaries_range.yaml")
 
     cfg = ConfigBoundaries()
     print(cfg)
+    
+    bounds = KpisBoundaries(verbose=2)
+    display(bounds.kpis_boundaries)

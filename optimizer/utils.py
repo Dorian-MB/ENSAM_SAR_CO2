@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path.cwd()))    
 
+from eco2_normandy.simulation import Simulation
 from eco2_normandy.tools import get_simlulation_variable
 from KPIS import Kpis
 
@@ -130,7 +131,7 @@ def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
         factory_filling_rate = kpis.factory_filling_rate() # want to maximize, so we will use -factory_filling_rate
         metrics = { k: v for k, v in zip(metrics_keys,
                                          [cost, wasted_production_over_time, waiting_time, 1-factory_filling_rate])}
-        return metrics
+        return pd.DataFrame(metrics, index=[0])
 
 def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None]:
     """
@@ -145,6 +146,58 @@ def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None
         if path.is_file() and path.suffix == '.yaml':
             yield path, config
 
+def evaluate_single_scenario(scenario: dict, return_score: bool=True) -> pd.DataFrame:
+    """Evaluate a scenario.
+
+    Args:
+        scenario (dict): The scenario configuration.
+
+    Returns:
+        pd.DataFrame: The evaluation results.
+    """
+    # Create a simulation instance
+    sim = Simulation(scenario, verbose=0)
+    sim.run()
+    result = calculate_performance_metrics(scenario, sim)
+    if return_score:
+        if not hasattr(evaluate_single_scenario, 'normalize'):
+            evaluate_single_scenario.normalize = Normalizer()
+        norm_df = evaluate_single_scenario.normalize(result)
+        result["score"] = evaluate_single_scenario.normalize.compute_score(norm_df)   
+    return result
+
+
+
+metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
+metrics_weight = [20, 20, 15, 30]
+class Normalizer:
+    """Normalize KPI values.
+    """
+    def __init__(self, kpis_boundaries: pd.DataFrame=None,
+                metrics_keys=metrics_keys, metrics_weight=metrics_weight,
+                ):
+        self.metrics_keys = metrics_keys
+        self.metrics_weight = metrics_weight
+        if kpis_boundaries:
+            self.kpis_boundaries = kpis_boundaries
+        else:
+            from optimizer.boundaries import KpisBoundaries
+            self.kpis_boundaries = KpisBoundaries(verbose=0).kpis_boundaries
+
+    def normalize(self, kpis_list: pd.DataFrame, clip: bool = False) -> pd.DataFrame:
+        """Normalize the KPIs using the provided boundaries."""
+        normalized = (kpis_list - self.kpis_boundaries["min"]) / (self.kpis_boundaries["max"] - self.kpis_boundaries["min"])
+        if clip:
+            return normalized.clip(0, 1)
+        return normalized
+
+    def compute_score(self, norm_df: pd.DataFrame):
+        """Compute the score for the KPIs."""
+        weighted = norm_df * self.metrics_weight
+        return weighted.sum(axis=1)
+
+    def __call__(self, *args, **kwargs):
+        return self.normalize(*args, **kwargs)
 
 ########## Usefull classes ##########
 # Config builder for simulation 

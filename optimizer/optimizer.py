@@ -10,8 +10,10 @@ import pandas as pd
 from colorama import Fore
 
 from eco2_normandy.logger import Logger
-from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler
+from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
 
+metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
+metrics_weight = [20, 20, 15, 30]
 class Optimizer:
     """
     Base class for optimization algorithms.
@@ -19,11 +21,13 @@ class Optimizer:
     """
 
     def __init__(self, model, logger:Logger=None, verbose:int|bool=1,
-                 enable_cprofile=False)->None:
+                metrics_keys=metrics_keys, metrics_weight=metrics_weight,
+                enable_cprofile=False)->None:
         self.log = logger or Logger()
         self.model = model
         self.verbose = verbose
-        self.mode = None
+        self.metrics_keys = metrics_keys
+        self.metrics_weight = metrics_weight
         self.enable_cprofile = enable_cprofile
         self.profiler = None
         self.cfg_builder = ConfigBuilderFromSolution(model.base_config)
@@ -43,16 +47,14 @@ class Optimizer:
         self.model.callbacks.base_config = base_config
         self.cfg_builder = ConfigBuilderFromSolution(base_config)
     
-    def evaluate(self, num_period:int=1000, 
+    def evaluate(self, num_period:int=2000, 
                         path:str="scenarios/", 
-                        use_best_sol:bool=True,
                         scenario_filter:str="phase",
-                        limite:int=None,
-                        clip:bool=True)->pd.DataFrame:
+                )->pd.DataFrame:
         """Evalue all scenarios in the given path.
 
         Args:
-            num_period (int, optional): number of simulation loop. Defaults to 1000.
+            num_period (int, optional): number of simulation loop. Defaults to 2000.
             path (str, optional): path of scenarios. Defaults to "scenarios/".
             use_best_sol (bool, optional): whether to use the best solution for evaluation. Defaults to True. False allow to use default scenario.
             scenario_filter (str, optional): filter for scenarios directory. Defaults to "phase".
@@ -61,24 +63,42 @@ class Optimizer:
         Returns:
             pd.DataFrame: MultiIndex DataFrame with results of the evaluation.
         """
-        if self.model.istrain is False and use_best_sol is True:
+        if self.model.istrain is False:
             self.log.info("model not trained yet, `Optimizer.optimize()`")
             return
-        results = {}
-        i = 1
+        results = []
+        i= 1
         for s_path, scenario in get_all_scenarios(path):
             if scenario_filter and scenario_filter not in str(s_path.parent):
                 continue
-            if self.verbose: self.log.info(Fore.GREEN + f"=== Evaluating scenario: {Fore.CYAN}{s_path.resolve()}{Fore.GREEN} ==="+ Fore.RESET)
             scenario['eval_name'] = s_path.name
             scenario["general"]["num_period"] = num_period
-            results[s_path.name] = self.model.evaluate(scenario, use_best_sol=use_best_sol, clip=clip)
-            if limite and limite <= i and self.verbose:
-                self.log.info(Fore.YELLOW + f"=== Limiting evaluation to {limite} scenarios ===" + Fore.RESET)
+            r = self.model.evaluate(scenario)
+            r.index = pd.Index([s_path.name])
+            results.append(r)
+            if i > 3:
                 break
             i += 1
-        self.full_results = pd.DataFrame(results).T
-        return self.full_results
+        return pd.concat(results, axis=0).sort_index(inplace=True)
+
+    @staticmethod
+    def evaluate_default_scenario(num_period=2000, path:str="scenarios/")->pd.DataFrame:
+        """Evaluate the default scenario.
+
+        Args:
+            num_period (int, optional): number of simulation loop. Defaults to 2000.
+
+        Returns:
+            pd.DataFrame: MultiIndex DataFrame with results of the evaluation.
+        """
+        results = []
+        for s_path, scenario in get_all_scenarios(path):
+            scenario['eval_name'] = s_path.name
+            scenario["general"]["num_period"] = num_period
+            r = evaluate_single_scenario(scenario)
+            r.index = pd.Index([s_path.name])
+            results.append(r)
+        return pd.concat(results).sort_index(inplace=True)
 
     def plot_pareto(self, scores:pd.DataFrame=None, figsize:tuple=(15, 15))->None:
         """Plot the pareto front of the optimization.

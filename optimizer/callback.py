@@ -62,23 +62,6 @@ class SimCallback(CpSolverSolutionCallback):
             return None
         return sim
 
-    def calculate_performance_metrics(self, cfg, sim):
-        return calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
-    
-    def dynamic_normalize_metrics(self, metrics:dict, dynamic_bounds:list=None, clip:bool=True)-> dict[str, float]:
-        """Normalise les métriques pour les mettre dans un intervalle dynamiquement."""
-        if dynamic_bounds is None:
-            dynamic_bounds = self.dynamic_bounds
-        return normalize_dynamic(metrics, dynamic_bounds, clip)
-
-    @property
-    def dynamic_bounds(self):
-        return compute_dynamic_bounds(self.kpis_list)
-
-    @property
-    def surrogate_dynamic_bounds(self):
-        return compute_dynamic_bounds(self.surrogate_met)
-
     def _add_metrics_to_front(self, metrics:list|dict, front:ParetoFront, front_name:str="")->bool:
         """Met à jour le front de Pareto avec les nouvelles métriques.
 
@@ -141,18 +124,30 @@ class SimCallback(CpSolverSolutionCallback):
                   f"\t→ Taux de remplissage de l'usine = {self.kpis_list[-1]['underfill_rate']*100:.2f}%\n"
                   + Fore.RESET)
 
-        self.norm_metrics.loc[self.evals] = metrics
-        self.raw_metrics.loc[self.evals] = self.kpis_list[-1]
+        self.raw_metrics.loc[self.evals] = metrics
         self.solutions.loc[self.evals] = sol
         self.evals += 1
 
+    def calculate_performance_metrics(self, cfg, sim):
+        return calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
+
     def _normalize_metrics(self):
-        """ Re-normalize kpis metrics after run is done, to use same updated dynamic bounds on all solutions."""
+        """ Normalize kpis metrics after run is done, to use same updated dynamic bounds on all solutions."""
         f = lambda row: self.dynamic_normalize_metrics(row)
         raw_data = self.raw_metrics.drop(["score"], axis=1, errors='ignore')
         normalized_series = raw_data.apply(f, axis=1)
         normalized_df = pd.DataFrame(normalized_series.tolist(), index=normalized_series.index)
         self.norm_metrics = normalized_df
+
+    def dynamic_normalize_metrics(self, metrics:dict, dynamic_bounds:list=None, clip:bool=True)-> dict[str, float]:
+        """Normalise les métriques pour les mettre dans un intervalle dynamiquement."""
+        if dynamic_bounds is None:
+            dynamic_bounds = self.dynamic_bounds
+        return normalize_dynamic(metrics, dynamic_bounds, clip)
+
+    @property
+    def dynamic_bounds(self):
+        return compute_dynamic_bounds(self.kpis_list)
 
     def _compute_raw_scores(self):
         """Retourne les scores bruts finaux sous forme de DataFrame."""
@@ -162,12 +157,6 @@ class SimCallback(CpSolverSolutionCallback):
         if "score" in self.raw_metrics.columns:
             return
         self.raw_metrics["score"] = self._compute_df_score(self.norm_metrics)
-        median = self.raw_metrics["score"].median()
-        # suppression des lignes avec un score > 10 * median 
-        filtre = self.raw_metrics["score"] <= 10 * median
-        self.raw_metrics = self.raw_metrics[filtre]
-        self.norm_metrics = self.norm_metrics[self.norm_metrics.index.isin(self.raw_metrics.index)]
-        self.solutions = self.solutions[self.solutions.index.isin(self.raw_metrics.index)]
     
     def best_raw_score(self):
         """Retourne le meilleur score brut."""

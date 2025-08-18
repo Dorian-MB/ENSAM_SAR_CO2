@@ -19,7 +19,10 @@ from multiprocessing import Pool, Manager
 from scipy.special import comb
 
 from optimizer.boundaries import ConfigBoundaries
-from optimizer.utils import ConfigBuilderFromSolution, LoggerForMultiprocessing, calculate_performance_metrics
+from optimizer.utils import (ConfigBuilderFromSolution, 
+                            LoggerForMultiprocessing, 
+                            calculate_performance_metrics, 
+                            Normalizer)
 from eco2_normandy.simulation import Simulation
 from eco2_normandy.logger import Logger
 from KPIS.utils import compute_dynamic_bounds 
@@ -103,7 +106,7 @@ class SimulationProblem(ElementwiseProblem):
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
         # assign objectives
         objectives = [metrics[k] for k in self.metrics_keys]
-        self.kpis_list.append({k:o for k, o in zip(self.metrics_keys, objectives)})
+        self.kpis_list.append(metrics)
         if not self.multi_obj:
             f = sum(w * v for w, v in zip(self.weights, objectives)) #todo: need to normalize 
             out['F'] = [f]
@@ -125,17 +128,19 @@ class GAModel:
         self.verbose = verbose
         # logger cant be parallelized, so we use print
         self.log = (logger or Logger()) if not parallelization else LoggerForMultiprocessing()
-        self.boundaries = ConfigBoundaries(logger=self.log)
         self.parallelization = parallelization
         self.n_pool = n_pool if parallelization else 1
         self.manager = Manager() if parallelization else None
 
         self.res = None
         self.algoritm = None
-        self.cfg_builder = ConfigBuilderFromSolution(base_config)
         self.solutions = []
         self.scores = []
         self.istrain = False
+
+        self.boundaries = ConfigBoundaries(logger=self.log)
+        self.cfg_builder = ConfigBuilderFromSolution(base_config)
+        self.normalize = Normalizer()
 
         path = Path.cwd() / 'saved' / 'dynamic_bounds.csv'
         self.log.info(Fore.YELLOW+f"Loading absolute bounds from {Fore.CYAN+str(path.resolve())}"+Fore.RESET)
@@ -236,29 +241,32 @@ class GAModel:
                 pool.close()
         return self.res
 
+    def _compute_score(self, row):
+        return sum(w * row[k] for w, k in zip(self.weights, metrics_keys))
+    
+    def _decode_and_repair(self, x):
+        sol = self.cfg_builder.decode_and_repair(x, self.problem.max_ships)
+        return sol
+
     def _set_results(self):
         if self.istrain is False:
             raise RuntimeError('No results available. Call solve() first.')
 
-        X = self.res.X
-        F = self.res.F
+        X = self.res.X[self.front_idx]
+        F = self.res.F[self.front_idx]
+        F = pd.DataFrame(F, columns=self.problem.metrics_keys, index=[f"solution_{i}" for i in range(len(F))]) # index important in case of singleton
+        self.scores = F.copy()
         solutions = []
-        results = []
 
-        # Calculer les scores pondérés pour les solutions du front de Pareto
         F_norm = self.normalize(F)
-        for idx in self.front_idx:
-            score = sum(w * v for w, v in zip(self.weights, F_norm[idx]))
-            x = X[idx]
-            sol = self.cfg_builder.decode_and_repair(x, self.problem.max_ships)
+        self.scores["score"] = F_norm.apply(self._compute_score, axis=1)
+
+        for idx, x in enumerate(X):
+            sol = self._decode_and_repair(x)
             solutions.append({'solution'+str(idx): sol})
-            results.append({f"results{idx}":F[idx].tolist() + [score]})
 
         idx, data = zip(*[(next(iter(s)), next(iter(s.values()))) for s in solutions])
         self.solutions = pd.DataFrame(data, index=idx)
-
-        idx, data = zip(*[(next(iter(r)), next(iter(r.values()))) for r in results])
-        self.scores = pd.DataFrame(data, index=idx, columns=self.problem.metrics_keys + ['score'])
 
     @property
     def front_idx(self):
@@ -277,22 +285,6 @@ class GAModel:
         if not self.istrain:
             raise RuntimeError('No results available. Call solve() first.')
         return pd.DataFrame([self.res.F[idx] for idx in self.front_idx])
-
-    def _dynamic_normalize(self):
-        abs_bounds = compute_dynamic_bounds(self.problem.kpis_list)
-        return pd.DataFrame(abs_bounds, index=["min", "max"]).T.to_dict(orient='list')
-        
-    def normalize(self, F, get_df=False):
-        if self.absolute_bounds is not None:
-            bounds = self.absolute_bounds
-        else:
-            bounds = self._dynamic_normalize()
-
-        F = pd.DataFrame(F, columns=self.problem.metrics_keys, index=[f"solution_{i}" for i in range(len(F))])
-        F = (F - bounds['min']) / (bounds['max'] - bounds['min'])
-        if not get_df:
-            return F.values.tolist()
-        return F
 
     def data_to_saved(self):
         if self.istrain is False:
@@ -356,18 +348,17 @@ class GAModel:
             self.log.error(Fore.RED+f"Simulation failed:"+Fore.RESET) 
             raise e
 
-    def evaluate(self, cfg:dict, use_best_sol:bool=True, clip:bool=True):
-        if self.istrain is False and use_best_sol is True:
+    def evaluate(self, cfg:dict, clip:bool=True):
+        if self.istrain is False:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
             return None
-        if use_best_sol:
-            cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
+        cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
         sim = self._run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
             return None
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
-        normed_metrics = self.normalize([metrics.values()], get_df=True)
+        normed_metrics = self.normalize(metrics)
         metrics["score"] = normed_metrics.apply(lambda row: sum(w * row[k] for k, w in zip(self.problem.metrics_keys, self.weights)), axis=1).iloc[0]
         return metrics
 
