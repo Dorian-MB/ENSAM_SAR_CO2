@@ -3,8 +3,6 @@ from colorama import Fore
 import pandas as pd
 
 from eco2_normandy.simulation import Simulation
-from KPIS import Kpis
-from KPIS.utils import compute_dynamic_bounds, normalize_dynamic
 from optimizer.utils import (ParetoFront, 
                             surrogate_metrics, 
                             ConfigBuilderFromSolution, 

@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 if __name__ == "__main__":
-    sys.path.append(str(Path.cwd()))
+    sys.path.insert(0, str(Path.cwd()))
 
 import pandas as pd
 from colorama import Fore

@@ -154,7 +154,7 @@ class KpisBoundaries:
         return bounds_df
 
 def get_kpis_boundaries():
-    return KpisBoundaries().kpis_boundaries
+    return KpisBoundaries(verbose=0).kpis_boundaries
 
 if __name__ == "__main__":
     from pprint import pprint

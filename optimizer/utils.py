@@ -2,12 +2,10 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Generator
 import sys
-sys.path.append(str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 import pandas as pd
-from pathlib import Path
-import sys
-sys.path.append(str(Path.cwd()))    
 
 from eco2_normandy.simulation import Simulation
 from eco2_normandy.tools import get_simlulation_variable
@@ -169,7 +167,7 @@ def evaluate_single_scenario(scenario: dict, return_score: bool=True) -> pd.Data
 
 
 metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 15, 30]
+metrics_weight = [20, 20, 10, 15]
 class Normalizer:
     """Normalize KPI values.
     """
@@ -181,8 +179,8 @@ class Normalizer:
         if kpis_boundaries:
             self.kpis_boundaries = kpis_boundaries
         else:
-            from optimizer.boundaries import KpisBoundaries
-            self.kpis_boundaries = KpisBoundaries(verbose=0).kpis_boundaries
+            from optimizer.boundaries import get_kpis_boundaries
+            self.kpis_boundaries = get_kpis_boundaries()
 
     def normalize(self, kpis_list: pd.DataFrame, clip: bool = False) -> pd.DataFrame:
         """Normalize the KPIs using the provided boundaries."""

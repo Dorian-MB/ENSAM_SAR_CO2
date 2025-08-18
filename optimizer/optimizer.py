@@ -2,6 +2,7 @@ import time
 import cProfile, pstats
 import sys
 from pathlib import Path
+
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
 
@@ -11,6 +12,7 @@ from colorama import Fore
 
 from eco2_normandy.logger import Logger
 from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
+from optimizer.compare_scenarios import print_diffs
 
 metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
 metrics_weight = [20, 20, 15, 30]
@@ -44,10 +46,14 @@ class Optimizer:
         Set the base configuration for the optimizer.
         """
         self.model.base_config = base_config
-        self.model.callbacks.base_config = base_config
+        self.model.callbacks.base_config = base_config # todo : erreur si GaModel
         self.cfg_builder = ConfigBuilderFromSolution(base_config)
     
-    def evaluate(self, num_period:int=2000, 
+    def compare_solution_to_base_config(self, solution):
+        sol_cfg = self.cfg_builder.build(solution)
+        print_diffs(sol_cfg, self.model.base_config) # todo: ajouter un print pour mieux differencier les 2 scenarios
+    
+    def evaluate_all_scenarios(self, num_period:int=2000, 
                         path:str="scenarios/", 
                         scenario_filter:str="phase",
                 )->pd.DataFrame:
@@ -72,13 +78,16 @@ class Optimizer:
                 continue
             scenario['eval_name'] = s_path.name
             scenario["general"]["num_period"] = num_period
-            r = self.model.evaluate(scenario)
+            r = self.evaluate(scenario)
             r.index = pd.Index([s_path.name])
             results.append(r)
         return pd.concat(results, axis=0).sort_index()
 
+    def evaluate(self, scenario):
+        return self.model.evaluate(scenario)
+
     @staticmethod
-    def evaluate_default_scenario(num_period=2000, path:str="scenarios/")->pd.DataFrame:
+    def evaluate_defaults_scenarios(num_period=2000, path:str="scenarios/")->pd.DataFrame:
         """Evaluate the default scenario.
 
         Args:
@@ -95,6 +104,9 @@ class Optimizer:
             r.index = pd.Index([s_path.name])
             results.append(r)
         return pd.concat(results).sort_index()
+
+    def evaluate_base_scenario(self):
+        return evaluate_single_scenario(self.model.base_config)
 
     def plot_pareto(self, scores:pd.DataFrame=None, figsize:tuple=(15, 15))->None:
         """Plot the pareto front of the optimization.
