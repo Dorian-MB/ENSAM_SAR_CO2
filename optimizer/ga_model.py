@@ -356,7 +356,7 @@ class GAModel:
             return None
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
         normed_metrics = self.normalize(metrics)
-        metrics["score"] = normed_metrics.apply(lambda row: sum(w * row[k] for k, w in zip(self.problem.metrics_keys, self.weights)), axis=1).iloc[0]
+        metrics["score"] = self.normalize.compute_score(normed_metrics)
         return metrics
 
 
