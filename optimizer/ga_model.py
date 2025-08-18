@@ -168,7 +168,7 @@ class GAModel:
         closest = min(valid_sizes, key=lambda x: abs(x[1] - desired_size))
         return closest[1]
     
-    def get_valid_pop_sizes(self):
+    def _get_valid_pop_sizes(self):
         """Retourne les tailles de population valides pour NSGA3"""
         valid_sizes = self._calculate_valid_population_sizes(self.n_obj)
         return sorted([size[1] for size in valid_sizes])
@@ -260,7 +260,7 @@ class GAModel:
 
         for idx, x in enumerate(X):
             sol = self._decode_and_repair(x)
-            solutions.append({'solution'+str(idx): sol})
+            solutions.append({'solution_'+str(idx): sol})
 
         idx, data = zip(*[(next(iter(s)), next(iter(s.values()))) for s in solutions])
         self.solutions = pd.DataFrame(data, index=idx)
@@ -283,47 +283,13 @@ class GAModel:
             raise RuntimeError('No results available. Call solve() first.')
         return pd.DataFrame([self.res.F[idx] for idx in self.front_idx])
 
-    def data_to_saved(self):
-        if self.istrain is False:
-            self.log.warning(Fore.RED+"No solutions or results available. Call solve() first."+Fore.RESET)
-            return {}
-        return {
-            'solutions_ga': self.solutions,
-            'scores_ga': self.scores,
-            'pareto_ga': self.pareto_front,
-        }
+    @property
+    def best_score(self):
+        return self.scores.loc[self.scores["score"].idxmin()]
     
     @property
     def best_solution(self):
-        return self._get_best()['solution']
-
-    def _get_best(self): 
-        """Retourne la meilleure solution (index dans le front de Pareto pour multi-obj)."""
-        if self.res is None:
-            raise RuntimeError('No results available. Call solve() first.')
-        
-        if self.multi_obj:
-            # Trouver la meilleure solution du front de Pareto (somme pondérée minimale)
-            F = self.res.F
-            nds = NonDominatedSorting()
-            front_indices = nds.do(F, only_non_dominated_front=True)
-
-            # Trouver l'index de la meilleure solution (score minimal)
-            scores = self.scores['score']
-            best_front_idx = np.argmin(scores)
-            best_idx = front_indices[best_front_idx]
-            
-            return {
-                'solution': self.solutions.iloc[best_front_idx],
-                'objectives': F[best_idx].tolist(),
-                'score': scores.iloc[best_front_idx]
-            }
-        else:
-            return {
-                'solution': self.solutions.iloc[0],
-                'objectives': self.res.F[0].tolist() if hasattr(self.res.F[0], '__iter__') else [self.res.F[0]],
-                'score': self.res.F[0] if not hasattr(self.res.F[0], '__iter__') else self.res.F[0][0]
-            }
+        return self.solutions.loc[self.best_score.name]
 
     def log_score(self):
         if self.res is None:
@@ -345,6 +311,16 @@ class GAModel:
             self.log.error(Fore.RED+f"Simulation failed:"+Fore.RESET) 
             raise e
 
+    def data_to_saved(self):
+        if self.istrain is False:
+            self.log.warning(Fore.RED+"No solutions or results available. Call solve() first."+Fore.RESET)
+            return {}
+        return {
+            'solutions_ga': self.solutions,
+            'scores_ga': self.scores,
+            'pareto_ga': self.pareto_front,
+        }
+        
     def evaluate(self, cfg:dict, clip:bool=True):
         if self.istrain is False:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
