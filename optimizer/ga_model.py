@@ -241,9 +241,6 @@ class GAModel:
                 pool.close()
         return self.res
 
-    def _compute_score(self, row):
-        return sum(w * row[k] for w, k in zip(self.weights, metrics_keys))
-    
     def _decode_and_repair(self, x):
         sol = self.cfg_builder.decode_and_repair(x, self.problem.max_ships)
         return sol
@@ -259,7 +256,7 @@ class GAModel:
         solutions = []
 
         F_norm = self.normalize(F)
-        self.scores["score"] = F_norm.apply(self._compute_score, axis=1)
+        self.scores["score"] = self.normalize.compute_score(F_norm)
 
         for idx, x in enumerate(X):
             sol = self._decode_and_repair(x)
