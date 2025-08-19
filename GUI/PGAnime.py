@@ -8,10 +8,11 @@ from pathlib import Path
 import pygame
 import numpy as np
 
-sys.path.append(str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 # Personal import 
-from KPIS import LiveKpisGraphsGenerator  
+from KPIS.LiveKpisGraphsGenerator import LiveKpisGraphsGenerator  
 from eco2_normandy import Factory, Storage, Simulation, shipState
 from eco2_normandy.logger import Logger
 

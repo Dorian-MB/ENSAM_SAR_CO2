@@ -58,7 +58,7 @@ def save_dataframe_to_csv(df: pd.DataFrame, config_name: str):
 
 
 def get_distance(storage: Storage, factory: Factory, distances: dict):
-    return distances[storage.name][factory.name]
+    return distances[factory.name][storage.name]
 
 
 def get_speed(weather: WeatherReport, speed_dict: dict, catchup=False) -> int:

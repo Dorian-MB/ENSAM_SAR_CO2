@@ -1,3 +1,3 @@
-from .KpisGraphsGenerator import KpisGraphsGenerator
-from .LiveKpisGraphsGenerator import LiveKpisGraphsGenerator
-from .kpis import Kpis
+from KPIS.KpisGraphsGenerator import KpisGraphsGenerator
+from KPIS.LiveKpisGraphsGenerator import LiveKpisGraphsGenerator
+from KPIS.kpis import Kpis

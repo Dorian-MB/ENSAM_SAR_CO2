@@ -28,7 +28,7 @@ from eco2_normandy.logger import Logger
 from KPIS.utils import compute_dynamic_bounds 
 from colorama import Fore
 
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
+metrics_keys = Normalizer().metrics_keys
 
 class SimulationProblem(ElementwiseProblem):
     """
@@ -141,16 +141,6 @@ class GAModel:
         self.boundaries = ConfigBoundaries(logger=self.log)
         self.cfg_builder = ConfigBuilderFromSolution(base_config)
         self.normalize = Normalizer()
-
-        path = Path.cwd() / 'saved' / 'dynamic_bounds.csv'
-        self.log.info(Fore.YELLOW+f"Loading absolute bounds from {Fore.CYAN+str(path.resolve())}"+Fore.RESET)
-        if path.exists():
-            self.log.info(Fore.GREEN+f"Using absolute bounds for normalization."+Fore.RESET)
-            with open(path, 'r') as f:
-                self.absolute_bounds = pd.read_csv(f, index_col="bounds").T #.to_dict(orient='list')
-        else:
-            self.log.info(Fore.LIGHTRED_EX+f"Using dynamic bounds for normalization."+Fore.RESET)
-            self.absolute_bounds = None
 
     def _calculate_valid_population_sizes(self, n_dim, max_size=500):
         """Calcule les tailles de population valides pour NSGA3"""

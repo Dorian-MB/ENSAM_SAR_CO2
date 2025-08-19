@@ -14,8 +14,6 @@ from eco2_normandy.logger import Logger
 from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
 from optimizer.compare_scenarios import print_diffs
 
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 15, 30]
 class Optimizer:
     """
     Base class for optimization algorithms.
@@ -23,13 +21,10 @@ class Optimizer:
     """
 
     def __init__(self, model, logger:Logger=None, verbose:int|bool=1,
-                metrics_keys=metrics_keys, metrics_weight=metrics_weight,
                 enable_cprofile=False)->None:
         self.log = logger or Logger()
         self.model = model
         self.verbose = verbose
-        self.metrics_keys = metrics_keys
-        self.metrics_weight = metrics_weight
         self.enable_cprofile = enable_cprofile
         self.profiler = None
         self.cfg_builder = ConfigBuilderFromSolution(model.base_config)

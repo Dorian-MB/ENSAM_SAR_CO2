@@ -8,23 +8,23 @@ from colorama import Fore
 
 from eco2_normandy.logger import Logger
 from optimizer.callback import SimCallback
-from optimizer.utils import flatten, ConfigBuilderFromSolution
+from optimizer.utils import flatten, ConfigBuilderFromSolution, Normalizer
 from optimizer.boundaries import ConfigBoundaries
 
 from ortools.sat.python import cp_model
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 15, 30]
+metrics_keys = Normalizer().metrics_keys
+metrics_weight = Normalizer().metrics_weight
 
 class CpModel(cp_model.CpModel):
     def __init__(self, config, algorithm:str="SearchForAllSolutions",
                  metrics_keys=metrics_keys, metrics_weight=metrics_weight,
-                 logger=None, verbose=1, boundaries=None, *args, **kwargs):     
+                 logger=None, verbose=1, *args, **kwargs):     
         super().__init__(*args, **kwargs)
         self.base_config = config
         self.metrics_keys = metrics_keys
         self.metrics_weight = metrics_weight
         self.verbose = verbose
-        self.boundaries = boundaries or ConfigBoundaries() 
+        self.boundaries =  ConfigBoundaries() 
         self.log = logger or Logger()
         self.solver = cp_model.CpSolver()
         self.algorithm_name = algorithm 
@@ -187,13 +187,11 @@ class CpModel(cp_model.CpModel):
                      verbose=1, 
                      max_time_in_seconds=None,
                      metrics_keys=None, 
-                     metrics_weight=None
                     ):
         self.callback = Callback(variables=self.callback_vars, 
                                     base_config=self.base_config, 
                                     max_evals=max_evals, 
                                     metrics_keys=metrics_keys or self.metrics_keys,
-                                    metrics_weight=metrics_weight or self.metrics_weight,
                                     verbose=verbose or self.verbose)
         if isinstance(max_time_in_seconds, (int, float)):
             self.solver.parameters.max_time_in_seconds = int(max_time_in_seconds)

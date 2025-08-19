@@ -129,14 +129,14 @@ class Ship(object):
     def _pick_new_destination(self):
         self.former_destination = self.destination # Pour l'animation
         if isinstance(self.destination, Storage):
-            self.distance_to_go = get_distance(self.factory, self.destination, self.distances)
+            self.distance_to_go = get_distance(self.destination, self.factory, self.distances)
             self.destination = self.factory
         else:
             if self.fixed_storage_destination:
                 self.destination = get_destination_from_name(self.fixed_storage_destination, self.factory, self.storages)
             else:
                 self.destination = random.choice(self.storages)
-            self.distance_to_go = get_distance(self.factory, self.destination, self.distances)
+            self.distance_to_go = get_distance(self.destination, self.factory, self.distances)
 
     def load_unload(self):
         # Retourne True lorsque le transfert est terminé.
@@ -157,6 +157,11 @@ class Ship(object):
                 return self.capacity == self.capacity_max
         return False
 
+    def get_speed(self, *args, **kwargs):
+        # speed = get_speed(*args, **kwargs) # ignorer pour l'instant car le 'weather' n'est pas encore pris en compte
+        # speed = min(speed, self.speed_max) # on retourne la vitesse maximale pour que les model puisse l'utiliser
+        return self.speed_max
+
     def run(self):
         # Initialisation à partir des paramètres initiaux
         if self.state == shipState.INIT:
@@ -172,7 +177,7 @@ class Ship(object):
             period = (self.env.now, self.env.now + WEATHER_LOOK_AHEAD)
             weathers = self.weather_station.get_weather_period(*period)
             if self.state == shipState.NAVIGATING:
-                self.speed = get_speed(weathers[0], self.allowed_speeds)
+                self.speed = self.get_speed(weathers[0], self.allowed_speeds)
                 self._navigating()
                 yield self.env.timeout(1)
             elif self.state == shipState.DOCKING:
@@ -200,7 +205,7 @@ class Ship(object):
                     self.state = shipState.DOCKING if self.next_state is None else self.next_state
                     if self.state == shipState.NAVIGATING:  # On quitte le port
                         self._pick_new_destination()
-                        self.speed = get_speed(weathers[0], self.allowed_speeds)
+                        self.speed = self.get_speed(weathers[0], self.allowed_speeds)
                     else:
                         self.distance_to_go = self.destination._get_pbs_to_dock()
                     self.next_state = None
