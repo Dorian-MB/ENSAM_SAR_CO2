@@ -1,7 +1,8 @@
 import sys
 import inspect
 from pathlib import Path
-sys.path.append(str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 import numpy as np
 import pandas as pd

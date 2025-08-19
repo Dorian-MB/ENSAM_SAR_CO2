@@ -59,7 +59,8 @@ class Kpis:
                     n_trips = sum(current_trip[s] for s in states)
                     if (destination_name == self.factory_name 
                         and capacity == 0
-                        and n_trips > 1):
+                        and n_trips > 1
+                        ):
                         trips_list.append(current_trip)
                         # Reset des compteurs pour un nouveau trajet
                         current_trip = init_trips()
@@ -95,7 +96,7 @@ class Kpis:
     def _get_states_to_dfs(self, states:list): 
         ships_states = {}
         for s in self.get_lvl_0_index(self.trips):
-            df = self.trips[s].dropna(axis=0)
+            df = self.trips[s].fillna(0)
             state_df = df[states]
             ships_states[s] = state_df
         return self._to_MultiIndex_dfs(ships_states)
@@ -181,7 +182,7 @@ class Kpis:
 
         # Factory CO2 Release Cost: use last row of the factory dataframe
         co2_released_in_factory = self.wasted_production()
-        co2_release_cost = co2_released_in_factory * self.kpis.get("co2_release_cost_per_ton", 1)
+        co2_release_cost = co2_released_in_factory * self.config["general"].get("m3_to_tons", 0.9) * self.kpis.get("co2_release_cost_per_ton", 1)
 
         # Assume delay penalty is zero for now
         delay_penalty = 0.0

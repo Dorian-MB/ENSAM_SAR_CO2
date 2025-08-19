@@ -10,8 +10,7 @@ from optimizer.utils import (ParetoFront,
                             Normalizer)
 from eco2_normandy.logger import Logger
                                                          
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 15, 30]
+metrics_keys = Normalizer().metrics_keys
 
 class SimCallback(CpSolverSolutionCallback):
     def __init__(self, variables, 
@@ -19,7 +18,6 @@ class SimCallback(CpSolverSolutionCallback):
                  max_evals:int=50, 
                  verbose:int=True, 
                  metrics_keys:list[str]=metrics_keys, 
-                 metrics_weight:list[int]=metrics_weight,
                  logger=None, 
                  ):
         super().__init__()
@@ -31,7 +29,6 @@ class SimCallback(CpSolverSolutionCallback):
         self.evals = 1
         self.solutions_tested = 0
         self.verbose = verbose
-        self.weights = {k:w for k,w in zip(metrics_keys, metrics_weight)} # poids des KPIs
         self.kpis_list = []
         self.surrogate_met = []
 

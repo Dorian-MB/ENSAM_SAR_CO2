@@ -4,7 +4,8 @@ from colorama import Fore
 
 from pathlib import Path
 import sys
-sys.path.append(str(Path.cwd()))
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path.cwd()))
 
 from eco2_normandy.factory import Factory
 from eco2_normandy.storage import Storage
@@ -13,7 +14,8 @@ from eco2_normandy.weather import WeatherStation
 from eco2_normandy.stateSaver import StateSaver
 from eco2_normandy.logger import Logger
 from eco2_normandy.tools import data_to_dataframe
-from KPIS import LiveKpisGraphsGenerator, Kpis
+from KPIS.LiveKpisGraphsGenerator import LiveKpisGraphsGenerator
+from KPIS.kpis import Kpis
 
 # --- Classe Simulation (corrigée pour réintégrer collecte de données et KPI) ---
 class Simulation:
