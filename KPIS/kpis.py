@@ -59,7 +59,7 @@ class Kpis:
                     n_trips = sum(current_trip[s] for s in states)
                     if (destination_name == self.factory_name 
                         and capacity == 0
-                        and n_trips > 1
+                        and n_trips > 2
                         ):
                         trips_list.append(current_trip)
                         # Reset des compteurs pour un nouveau trajet
@@ -73,6 +73,7 @@ class Kpis:
                 current_trip[state] += 1
             all_trips[ship_name] = trips_list
         self.trips = self._to_MultiIndex_dfs(all_trips)
+        self.trips.index = pd.Index([f"Trip {i+1}" for i in range(len(self.trips))])
         return self.trips
 
     def factory_filling_rate(self):

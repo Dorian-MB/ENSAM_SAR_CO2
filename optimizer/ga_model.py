@@ -31,25 +31,17 @@ from colorama import Fore
 metrics_keys = Normalizer().metrics_keys
 
 class SimulationProblem(ElementwiseProblem):
-    """
-    Problem definition for the simulation optimization using a genetic algorithm.
-    """
+    """Problem definition for the simulation optimization using a genetic algorithm."""
     def __init__(self, base_config, boundaries: ConfigBoundaries,
                  multi_obj: bool = True, weights=None, kpis_list=None,
                  mertrics_keys=metrics_keys, elementwise_runner=None):
-        """ Initialize the simulation problem, as a pymoo ElementwiseProblem.
-
-        Args:
-            base_config (_type_): _base configuration for the simulation.
-            boundaries (ConfigBoundaries): 
-            multi_obj (bool, optional): Defaults to True.
-            weights (_type_, optional): Defaults to None.
-        """
+        """Initialize the simulation problem, as a pymoo ElementwiseProblem."""
         self.base_config = base_config
         self.boundaries = boundaries
         self.max_ships = boundaries.max_num_ships
         self.multi_obj = multi_obj
-        self.weights = weights or [20, 20, 15, 10]
+        # default weights from Normalizer for consistency across modules
+        self.weights = weights or Normalizer().metrics_weight
         self.metrics_keys = mertrics_keys
         self.cfg_builder = ConfigBuilderFromSolution(base_config)
         self.kpis_list = kpis_list 
@@ -114,9 +106,9 @@ class SimulationProblem(ElementwiseProblem):
             out['F'] = objectives
 
 class GAModel:
-    def __init__(self, base_config, pop_size=20, n_gen=10, algorithm='NSGA3', 
-                 weights=None, verbose=True, logger=None, 
-                 parallelization:bool=False, n_pool:int=4,
+    def __init__(self, base_config, pop_size=20, n_gen=10, algorithm='NSGA3',
+                 weights=None, verbose=True, logger=None,
+                 parallelization: bool = False, n_pool: int = 4,
                  *args, **kwargs):
         self.base_config = base_config
         self.pop_size = pop_size
@@ -124,7 +116,8 @@ class GAModel:
         self.multi_obj = True if algorithm in ('NSGA3', 'NSGA2') else False
         self.n_obj = 4 if self.multi_obj else 1
         self.algorithm_name = algorithm
-        self.weights = weights or [20, 20, 15, 30]
+        # default weights from Normalizer for consistency across modules
+        self.weights = weights or Normalizer().metrics_weight
         self.verbose = verbose
         # logger cant be parallelized, so we use print
         self.log = (logger or Logger()) if not parallelization else LoggerForMultiprocessing()
@@ -220,7 +213,7 @@ class GAModel:
                 algo,
                 termination,
                 seed=1,
-                verbose=True
+                verbose=self.verbose
             )
             self.istrain = True
         except Exception as e:
