@@ -14,7 +14,7 @@ from eco2_normandy.logger import Logger
 from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
 from optimizer.compare_scenarios import print_diffs
 
-class Optimizer:
+class OptimizationOrchestrator:
     """
     Base class for optimization algorithms.
     This class provides a framework for implementing various optimization strategies.
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     logger = Logger()
     model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
     # model = CpModel(config)
-    optimizer = Optimizer(model=model, verbose=1, enable_cprofile=False)
+    optimizer = OptimizationOrchestrator(model=model, verbose=1, enable_cprofile=False)
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
     optimizer.optimize()
     optimizer.log_score()
