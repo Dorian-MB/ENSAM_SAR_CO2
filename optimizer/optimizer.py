@@ -207,19 +207,19 @@ class Optimizer:
         """
         self.model.log_score()
         
-    def save_solution(self, dir:str='./saved/', index:bool=True):
+    def save_solution(self, dir_:str='./saved/', index:bool=True):
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             return
-        dir = Path(dir)
-        dir.mkdir(parents=True, exist_ok=True)
+        dir_ = Path(dir_)
+        dir_.mkdir(parents=True, exist_ok=True)
         for name, df in self.model.data_to_saved().items():
             if isinstance(df, pd.DataFrame):
-                df.to_csv(dir / f"{name}.csv", index=index)
+                df.to_csv(dir_ / f"{name}.csv", index=index)
             else:
                 self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
         self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
-        self.log.info(f"Result files saved in {Fore.CYAN+str(dir.resolve())+Fore.RESET} directory")
+        self.log.info(f"Result files saved in {Fore.CYAN+str(dir_.resolve())+Fore.RESET} directory")
 
     def build_config_from_solution(self, solution:dict, algorithm:str=None, *args, **kwargs) -> dict:
         """
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
     optimizer.optimize()
     optimizer.log_score()
-    optimizer.save_solution(dir=str(saved_folder))
+    optimizer.save_solution(dir_=str(saved_folder))
 
     yesno = input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
     if yesno == "y":
