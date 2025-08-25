@@ -127,56 +127,70 @@ class CpModel(cp_model.CpModel):
 
     def _add_heuristic_objectives(self):
         ship_cap_min, ship_cap_max = self.boundaries.ship_capacity_min, self.boundaries.ship_capacity_max
-        max_num_ships = self.boundaries.max_num_ships
+        max_ships = self.boundaries.max_num_ships
         min_speed, max_speed = self.boundaries.ship_speed_min, self.boundaries.ship_speed_max
-        self._add_int_variables(1, max_num_ships, name="num_ship")
+
+        # Decision vars subset for heuristic phase
+        # Share with callback phase
+        self._add_int_variables(1, max_ships, name="num_ship")
         self._add_int_variables(ship_cap_min, ship_cap_max, name="ship_capacity")
         self._add_int_variables(min_speed, max_speed, name="ship_speed")
+
         num_ship   = self.vars["num_ship"]
         ship_speed = self.vars["ship_speed"]
         ship_caps  = self.vars["ship_capacity"]
 
-        # constants
-        max_ship = 3
-        min_speed, max_speed = 12, 15
-        total_period = self.base_config["general"]["num_period"] 
+        # Constants from config/boundaries
+        total_period  = self.base_config["general"]["num_period"]
         cost_per_ship = self.base_config["ships"][0]["ship_buying_cost"]
         fuel_price    = self.base_config["KPIS"]["fuel_price_per_ton"]
-        prod_per_year = self.base_config["factory"]["sources"][0]["annual_production_capacity"]
-        prod_rate =  prod_per_year / (24*365 * self.base_config["general"]["num_period_per_hours"])
+        sources       = self.base_config["factory"]["sources"]
+        sources_annual_prod = [src["annual_production_capacity"] for src in sources]
+        prod_per_year = sum(sources_annual_prod)
+        prod_rate     = prod_per_year / (24 * 365 * self.base_config["general"]["num_period_per_hours"])
 
-        # normalization & weight
-        n_wasted = int(prod_rate * total_period)
-        n_cost = int(cost_per_ship * max_ship + fuel_price * max_speed * max_ship)
-        w = {k:v for k, v in zip(self.metrics_keys, self.metrics_weight)}
+        # Normalization & weights
+        n_wasted = max(1, int(prod_rate * total_period)) # max wasted
+        n_cost = max(1, int(cost_per_ship * max_ships + fuel_price * max_speed * max_ships))
+        w = {k: v for k, v in zip(self.metrics_keys, self.metrics_weight)}
 
-        max_cap  = 20_000
-        transport_cap = self.NewIntVar(0, max_cap * max_ship, "transport_cap")
+        # Transport capacity: ship_caps * num_ship
+        max_cap = ship_cap_max
+        transport_cap_max = max_cap * max_ships
+        transport_cap = self.NewIntVar(0, transport_cap_max, "transport_cap")
         self.AddMultiplicationEquality(transport_cap, [ship_caps, num_ship])
 
-        # slack pour wasted = max(0, prod_rate*total_period - transport_cap)
-        # wasted = prod_rate * total_period - transport_cap
-        A = int(prod_rate * total_period)
-        wasted = self.NewIntVar(0, A, "wasted_slack")
-        self.Add(A - transport_cap <= wasted)
+        # wasted = max(0, prod_max - transport_cap)
+        prod_max = int(prod_rate * total_period)
+        wasted = self.NewIntVar(0, prod_max, "wasted_slack")
+        minus_t = self.NewIntVar(-transport_cap_max, prod_max, "minus_transport")
+        self.Add(minus_t == prod_max - transport_cap)
+        zero = self.NewIntVar(0, 0, "zero")
+        self.AddMaxEquality(wasted, [zero, minus_t])
 
-        # surrogate cost proxy = inv + op
-        ship_speed_time_ship = self.NewIntVar(0, max_speed * max_ship, "ship_speed_time_ship")
-        self.AddMultiplicationEquality(ship_speed_time_ship, [ship_speed, num_ship])
-        cost_expr = cost_per_ship * num_ship \
-                    + fuel_price * ship_speed_time_ship
+        # surrogate cost proxy: investment + operating proxy
+        total_ship_speed_time = self.NewIntVar(0, max_speed * max_ships, "total_ship_speed_time")
+        self.AddMultiplicationEquality(total_ship_speed_time, [ship_speed, num_ship])
+        cost_expr = cost_per_ship * num_ship + fuel_price * total_ship_speed_time
 
-        scale = 100
-        inv_speed = self.NewIntVar(0, scale//min_speed, "inv_speed") # Represente distance / vitesse => temps
-        self.AddMultiplicationEquality(inv_speed, [inv_speed, ship_speed]) 
+        # Inverse speed approximation via a table constraint inv ≈ floor(scale / speed) ~ time = d/v
+        scale = 60
+        proxy_time = self.NewIntVar(0, max(1, scale // min_speed), "proxy_time")
+        # Build allowed pairs for (ship_speed, proxy_time)
+        pairs = []
+        for s in range(min_speed, max_speed + 1):
+            inv = scale // s
+            pairs.append([s, inv])
+        self.AddAllowedAssignments([ship_speed, proxy_time], pairs)
 
-        waiting = self.NewIntVar(0, max_ship*scale//min_speed, "waiting_proxy")
-        self.AddMultiplicationEquality(waiting, [num_ship, inv_speed])
+        # waiting proxy ~ num_ship * inv_speed
+        waiting = self.NewIntVar(0, max_ships * max(1, scale // min_speed), "waiting_proxy")
+        self.AddMultiplicationEquality(waiting, [num_ship, proxy_time])
 
         surrogate = (
-            w["cost"] / n_cost * cost_expr 
-          + w["wasted_production_over_time"] / n_wasted * wasted 
-          + w["waiting_time"] / total_period * waiting  # normalize waiting time by total period
+            w["cost"] / n_cost * cost_expr
+            + w["wasted_production_over_time"] / n_wasted * wasted
+            + w["waiting_time"] / max(1, total_period) * waiting
         )
         self.Minimize(surrogate)
         self.surrogate = surrogate
