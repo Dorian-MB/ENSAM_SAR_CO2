@@ -73,11 +73,8 @@ def main():
         print("Numéros invalides ou identiques.")
         sys.exit(1)
 
-
     # Liste des clés présentes dans au moins un scénario
     print_diffs(configs[idx1], configs[idx2])
-
-
 
 if __name__ == "__main__":
     main()
