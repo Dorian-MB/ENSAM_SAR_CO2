@@ -71,10 +71,17 @@ class Logger:
         for handler in self._logger.handlers:
             handler.close()
             self._logger.removeHandler(handler)
-
+    
     def __getattr__(self, name):
+        # Éviter la récursion infinie lors de l'accès à _logger
+        if name == '_logger':
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        
+        # Éviter les méthodes de copie/sérialisation pour deepcopy
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+            
         try:
             return getattr(self._logger, name)
-        except Exception as e:
-            print(f"Error accessing logger attribute '{name}': {e}")
-            raise e
+        except AttributeError:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
