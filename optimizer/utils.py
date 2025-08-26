@@ -200,15 +200,11 @@ class Normalizer:
 ########## Usefull classes ##########
 # Config builder for simulation 
 class ConfigBuilderFromSolution:
-    def __init__(self, base_config, sol=None):
+    def __init__(self, base_config, boundaries):
         self.base_config = base_config
         self.map_ship_initial_destination = {0: "Le Havre", 1: "Rotterdam", 2: "Bergen"}
         self.map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
-        if sol is not None:
-                self.cfg = self.build(sol)
-        else:
-                self.cfg = None
-
+        self.boundaries = boundaries
 
     def get_config_from_solution(self, sol:dict, algorithm:str, *args, **kwargs) -> dict:
         """
@@ -219,6 +215,20 @@ class ConfigBuilderFromSolution:
         else :
             return self.build(sol)
         
+    def predict_cost(self, x, X, Y):
+        """Predict the cost for a given input.
+
+        Args:
+            x (int): value to predict
+            X (tuple): bounds: min[0]/max[1] of tank or ship caps
+            Y (tuple): bound: min[0]/max[1] of cost for tank or ship
+
+        Returns:
+            int: cost prediction
+        """
+        pente = (Y[1] - Y[0]) / (X[1] - X[0])
+        ordonnee = Y[0] - pente * X[0]
+        return pente * x + ordonnee
 
     def _get_storage_name(self, sol, i):
         if sol["use_Bergen"] and sol["use_Rotterdam"]:
@@ -230,19 +240,23 @@ class ConfigBuilderFromSolution:
         
     def build(self, sol:dict)->dict:
         cfg = deepcopy(self.base_config)
-        base_factory = cfg["factory"]
-        cfg["factory"]["number_of_tanks"] = sol.get("number_of_tanks", base_factory["number_of_tanks"])
-        cfg["factory"]["capacity_max"] = sol.get("capacity_max_factory", base_factory["capacity_max"])
-        cfg["factory"]["docks"] = sol.get("factory_docks", base_factory["docks"]) 
+        cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
+        cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)
+        X = (self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"])
+        Y = (self.boundaries.factory_cost_per_tank["min"], self.boundaries.factory_cost_per_tank["max"])
+        cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = "" 
+        storage["capacity_max"] = sol["storage_caps"]
         cfg["storages"].clear()
-        for i in range(sol.get("num_storages", len(cfg["storages"]))):
+        for i in range(sol["num_storages"]):
             cfg["storages"].append(deepcopy(storage))
             cfg["storages"][i]["name"] = self._get_storage_name(sol, i)
 
         # add initial port
+        X = (self.boundaries.ship_capacity["min"], self.boundaries.ship_capacity["max"])
+        Y = (self.boundaries.ship_cost["min"], self.boundaries.ship_cost["max"])
         ship = deepcopy(cfg["ships"][0])
         cfg["ships"].clear()
         for i in range(sol["num_ship"]):
@@ -250,8 +264,9 @@ class ConfigBuilderFromSolution:
             cfg["ships"][i]["name"] = f"Ship {i+1}"
             cfg["ships"][i]["init"]["destination"] = self.map_ship_initial_destination[sol[f"init{i+1}_destination"]]
             cfg["ships"][i]["fixed_storage_destination"] = self.map_ship_fixed_storage_destination[sol[f"fixed{i+1}_storage_destination"]]
-            cfg["ships"][i]["capacity_max"] = sol[f"ship_capacity"]
-            cfg["ships"][i]["speed_max"] = sol[f"ship_speed"]  
+            cfg["ships"][i]["capacity_max"] = sol["ship_capacity"]
+            cfg["ships"][i]["speed_max"] = sol["ship_speed"]  
+            cfg["ships"][i]["ship_buying_cost"] = self.predict_cost(sol["ship_capacity"], X, Y)
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
 
@@ -264,6 +279,7 @@ class ConfigBuilderFromSolution:
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
 
+    #! not needed anymore
     def decode_and_repair(self, x, max_ships):
         """
         Decode the decision vector x into a solution dict and enforce storage consistency.
@@ -275,27 +291,29 @@ class ConfigBuilderFromSolution:
         sol['use_Bergen']         = int(x[idx]); idx += 1
         sol['use_Rotterdam']      = int(x[idx]); idx += 1
         sol['num_ship']           = int(x[idx]); idx += 1
-        sol['ship_capacity']      = int(x[idx]); idx += 1
         sol['ship_speed']         = int(x[idx]); idx += 1
+        sol['number_of_tanks']    = int(x[idx]); idx += 1
+        sol['ship_capacity']      = int(x[idx]); idx += 1
+        sol['storage_caps']       = int(x[idx]); idx += 1
         # Per-ship destinations
         for i in range(max_ships):
             sol[f'init{i+1}_destination'] = int(x[idx]); idx += 1
-        for i in range(max_ships):
             sol[f'fixed{i+1}_storage_destination'] = int(x[idx]); idx += 1
 
-        # Repair storage flags based on num_storages and per-ship destinations
-        if sol['num_storages'] >= 2:
-            sol['use_Bergen']    = 1
-            sol['use_Rotterdam'] = 1
-        else:
-            flags = [sol[f'fixed{i+1}_storage_destination'] for i in range(max_ships)]
-            if any(f == 1 for f in flags):
-                sol['use_Bergen']    = 1
-                sol['use_Rotterdam'] = 0
-            else:
-                sol['use_Bergen']    = 0
-                sol['use_Rotterdam'] = 1
-            sol['num_storages'] = sol['use_Bergen'] + sol['use_Rotterdam']
+        #* Done with pymoo.[...].Repair
+        # # Repair storage flags based on num_storages and per-ship destinations
+        # if sol['num_storages'] >= 2:
+        #     sol['use_Bergen']    = 1
+        #     sol['use_Rotterdam'] = 1
+        # else:
+        #     flags = [sol[f'fixed{i+1}_storage_destination'] for i in range(max_ships)]
+        #     if any(f == 1 for f in flags):
+        #         sol['use_Bergen']    = 1
+        #         sol['use_Rotterdam'] = 0
+        #     else:
+        #         sol['use_Bergen']    = 0
+        #         sol['use_Rotterdam'] = 1
+        #     sol['num_storages'] = sol['use_Bergen'] + sol['use_Rotterdam']
 
         return sol
 

@@ -99,24 +99,54 @@ class ConfigBoundaries:
             self.log.info(Fore.LIGHTRED_EX+f"{boundaries_yaml} not found,{Fore.YELLOW} generating boundaries from scenarios in {scenarios_path}"+Fore.RESET)
             init_configs(scenarios_path)
             self._boundaries = get_boundaries()
-
-        self.max_num_storages = int(self._boundaries.get("storages.num_storages")["constant"] + 1)
-        self.ship_capacity_min = int(self._boundaries.get("ships.capacity_max")["min"])
-        self.ship_capacity_max = int(self._boundaries.get("ships.capacity_max")["max"])
-        self.max_num_ships = int(self._boundaries.get("ships.num_ships")["max"])                 
-        self.ship_speed_min, self.ship_speed_max = int(self._boundaries.get("ships.speed_max")["min"]), int(self._boundaries.get("ships.speed_max")["max"])
         
-        self.initial_destination = 2 # 0=factory, 1=Rotterdam, 2=Bergen 
+        self.factory_caps_per_tanks = 5700
+
+        self.ship_capacity = {
+            "min": int(self._boundaries["ships.capacity_max"]["min"]),
+            "max": int(self._boundaries["ships.capacity_max"]["max"])
+        }
+        self.max_num_ships = int(self._boundaries["ships.num_ships"]["max"])
+        self.ship_speed = {
+            "min": int(self._boundaries["ships.speed_max"]["min"]),
+            "max": int(self._boundaries["ships.speed_max"]["max"])
+        }
+        self.max_num_storages = int(self._boundaries["storages.num_storages"]["constant"] + 1)
+        self.storage_caps = {
+            "max": int(self._boundaries["storages.capacity_max"]["max"]),
+            "min": int(self._boundaries["storages.capacity_max"]["min"])
+        }
+        self.factory_tanks = {
+            "max": int(self._boundaries["factory.number_of_tanks"]["max"]),
+            "min": int(self._boundaries["factory.number_of_tanks"]["min"])
+        }
+
+        self.initial_destination = 2 # 0=factory, 1=Rotterdam, 2=Bergen
         self.fixed_storage_destination = 1  # 1=Bergen, 0=Rotterdam 
         self.verbose = verbose
 
+        # Hidden Variables (Cost)
+        self.ship_cost = {
+            "max": int(self._boundaries["ships.ship_buying_cost"]["max"]),
+            "min": int(self._boundaries["ships.ship_buying_cost"]["min"])
+        }
+        self.factory_cost_per_tank = {
+            "max": int(self._boundaries["factory.cost_per_tank"]["max"]),
+            "min": int(self._boundaries["factory.cost_per_tank"]["min"])
+        }
+
     def __repr__(self):
         return f"""ConfigBoundaries(max_num_storages={self.max_num_storages}, 
-        ship_capacity_min={self.ship_capacity_min}, 
-        ship_capacity_max={self.ship_capacity_max}, 
+        ship_capacity_min={self.ship_capacity["min"]}, 
+        ship_capacity_max={self.ship_capacity["max"]}, 
         max_num_ships={self.max_num_ships}, 
-        ship_speed_min={self.ship_speed_min}, 
-        ship_speed_max={self.ship_speed_max})"""
+        ship_speed_min={self.ship_speed["min"]}, 
+        ship_speed_max={self.ship_speed["max"]})
+        factory_tanks_min={self.factory_tanks["min"]}, 
+        factory_tanks_max={self.factory_tanks["max"]},
+        storage_caps_min={self.storage_caps["min"]},
+        storage_caps_max={self.storage_caps["max"]}
+        """
 
 
 class KpisBoundaries:
@@ -153,6 +183,11 @@ class KpisBoundaries:
         bounds_df.underfill_rate = bounds_df.underfill_rate.clip(lower=0, upper=1)  # Clip underfilling rate to [0, 1]
         bounds_df.to_csv(self.path, index=True)
         return bounds_df
+
+    def __repr__(self):
+        return f"""KpisBoundaries(
+            kpis_bounds={self.kpis_boundaries.to_dict(orient="index")}
+            )"""
 
 def get_kpis_boundaries():
     return KpisBoundaries(verbose=0).kpis_boundaries

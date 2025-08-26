@@ -60,11 +60,11 @@ class CpModel(cp_model.CpModel):
         # Storages 
         max_num_storages = self.boundaries.max_num_storages
         # Ships
-        ship_cap_min, ship_cap_max = self.boundaries.ship_capacity_min, self.boundaries.ship_capacity_max
+        ship_cap_min, ship_cap_max = self.boundaries.ship_capacity["min"], self.boundaries.ship_capacity["max"]
         max_num_ships = self.boundaries.max_num_ships
-        min_speed, max_speed = self.boundaries.ship_speed_min, self.boundaries.ship_speed_max
-        initial_destination = self.boundaries.initial_destination # 0=factory, 1=Rotterdam, 2=Bergen 
-        fixed_storage_destination = self.boundaries.fixed_storage_destination  # 1=Bergen, 0=Rotterdam 
+        min_speed, max_speed = self.boundaries.ship_speed["min"], self.boundaries.ship_speed["max"]
+        initial_destination = self.boundaries.initial_destination # 0=factory, 1=Rotterdam, 2=Bergen
+        fixed_storage_destination = self.boundaries.fixed_storage_destination  # 1=Bergen, 0=Rotterdam
 
         #### Variables CP-SAT ####
         #! ---- Variables pour les storages ---- 
@@ -126,9 +126,9 @@ class CpModel(cp_model.CpModel):
         self.callback_vars = flatten(self.vars.values())
 
     def _add_heuristic_objectives(self):
-        ship_cap_min, ship_cap_max = self.boundaries.ship_capacity_min, self.boundaries.ship_capacity_max
+        ship_cap_min, ship_cap_max = self.boundaries.ship_capacity["min"], self.boundaries.ship_capacity["max"]
         max_ships = self.boundaries.max_num_ships
-        min_speed, max_speed = self.boundaries.ship_speed_min, self.boundaries.ship_speed_max
+        min_speed, max_speed = self.boundaries.ship_speed["min"], self.boundaries.ship_speed["max"]
 
         # Decision vars subset for heuristic phase
         # Share with callback phase

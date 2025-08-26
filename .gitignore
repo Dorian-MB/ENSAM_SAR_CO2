@@ -22,4 +22,4 @@ config.yaml
 .pdf/
 **/.ipynb_checkpoints/
 .DS_Store
-run_phases.py
+CLAUDE.md
