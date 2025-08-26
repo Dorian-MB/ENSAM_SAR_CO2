@@ -1,177 +1,240 @@
 
-# eco2_normandy - CO₂ Transport Simulation
+# eco2_normandy – Simulation & Optimisation du transport de CO₂
 
-## Quickstart / Run the Simulation
+Simulation discrète (SimPy) du transport de CO₂ liquéfié entre une usine (factory) et un ou plusieurs terminaux de stockage (storage), génération de KPI, visualisation (Streamlit + Pygame) et optimisation multi‑objectifs (CP-SAT / Algorithmes évolutionnaires).
 
-To quickly get started with the simulation, follow these steps:
-
-1. **Clone the repository**:
-    ```bash
-    git clone <repository_url>
-    cd eco2_normandy
-    ```
-
-2. **Install dependencies**:
-    - Install the required Python dependencies using `pip` or `poetry`:
-    ```bash
-    pip install -r requirements.txt
-    ```
-    or if you're using Poetry:
-    ```bash
-    poetry install
-    ```
-
-3. **Build the executable**:
-    - After installing the dependencies, build the simulation executable using PyInstaller:
-    ```bash
-    make exe
-    ```
-    or in Poweshell
-    ```powershell
-    python -m poetry run python -m PyInstaller --onefile --add-data "KPIS\template.html;KPIS\" --hidden-import xlsxwriter configurable_main.py
-    ```
-
-    This will generate an `.exe` file inside the `dist/` folder.
-
-4. **Run the simulation**:
-    - To run the simulation, you must place the generated `.exe` file in the same directory as your `config.yaml` file.
-    - Navigate to the directory containing the `config.yaml` file and the executable (`.exe`).
-    - Run the `.exe` file:
-    ```bash
-    ./simulate_co2_transportation.exe
-    ```
-
-    - You can also specify the path of the config/configs you want to use by using --config:
-    ```bash
-    ./simulate_co2_transportation.exe --config ..\scenarios
-    ```
-
-    If no --config is specified, the simulation will use the `config.yaml` in the same directory for its configuration and execute the transport model.
-    If the value of --config is a directory containing multiple .yaml configs, they will all be simulated, and a directory  `le_havre_capacity_evolution_comparison` will be created with a graph to compare the different scenarios.
+## Sommaire
+1. Installation rapide
+2. Lancer une simulation (code & UI Streamlit)
+3. Visualisation Pygame
+4. Structure d’un fichier de configuration
+5. Scénarios & optimisation (GA / CP)
+6. KPI disponibles
+7. Structure du projet
+8. Développement & commandes utiles
+9. Documentation Sphinx
 
 ---
+## 1. Installation rapide
 
-## Configuration Syntax
+Prérequis: Python 3.10 – 3.13.
 
-### List Format for Values
+Via Poetry (recommandé):
+```bash
+poetry install
+poetry run python -m eco2_normandy.simulation  # test rapide
+```
 
-All values must be enclosed in a list, even if it’s a single entry. This is to ensure consistent parsing by the script.
+Ou via requirements.txt (environnement actif):
+```bash
+pip install -r requirements.txt
+```
 
-#### Incorrect Format:
+Lancer l’app Streamlit:
+```bash
+poetry run streamlit run streamlit_app.py
+```
+Ou via Make:
+```bash
+make st
+```
+
+
+---
+## 2. Lancer une simulation par code
+```python
+from eco2_normandy.simulation import Simulation
+from eco2_normandy.tools import get_simlulation_variable
+
+config, *_ = get_simlulation_variable("config.yaml")  # ou un fichier dans scenarios/
+config["general"]["num_period"] = 2000
+sim = Simulation(config=config, verbose=True)
+sim.run()
+results_df = sim.result  # DataFrame multi‑entités
+```
+
+### Interface Streamlit
+Lancez l’UI (formulaire interactif pour définir factory / storages / ships) :
+```bash
+poetry run streamlit run streamlit_app.py
+# ou 
+make st
+```
+Une fois la simulation terminée, des graphiques Plotly (capacités, waste, temps d’attente, coûts…) sont affichés.
+
+---
+## 3. Visualisation Pygame
+Depuis l’UI Streamlit bouton “PyGame Animation 🚀” ou directement:
+```python
+from GUI.PGAnime import PGAnime
+PGAnime(config).run()
+```
+
+---
+## 4. Fichier de configuration (YAML)
+Principales sections: `general`, `factory`, `storages`, `ships`, `KPIS`, `allowed_speeds`, `weather_probability`.
+
+### Format des valeurs (important)
+Toutes les valeurs “scalaires” susceptibles d’être générées en série peuvent être écrites sous forme de liste pour un parsing homogène.
+
+Incorrect:
 ```yaml
 name: Ship 1
 ```
-
-#### Correct Format:
+Correct:
 ```yaml
 name: [Ship 1]
 ```
 
----
-
-### Creating a Range of Values
-
-You can specify a range of values using the `range` keyword. This is useful for generating a sequence of numbers or values in a specified range.
-
-Example:
+### Génération de plages (range)
 ```yaml
 ships:
   - name: [Ship 1]
     capacity_max:
-      range: [20, 30000, 1000]
+      range: [20, 30000, 1000]  # start, end, step
 ```
+Génère: 20, 1020, 2020, …, 29000.
 
-This will create a series of values for `capacity_max`, starting at `20`, ending at `30000`, with an increment of `1000`. The resulting values will be: `[20, 1020, 2020, 3020, ..., 29000]`.
+### Multiplicité
+- Plusieurs ships & storages.
+- Une seule factory (sinon erreur).
 
----
+### Paramètre `general.num_ships`
+Si moins d’objets définis que `num_ships`, duplication automatique des navires pour atteindre le nombre requis.
 
-### Defining Multiple Entities
-
-- **Multiple Ships and Storages**: You can define multiple ships and storage ports.
-- **One Factory**: Only one factory can be defined in the configuration. If more than one factory is specified, an error will occur.
-
----
-
-### Respecting the `num_ships` Parameter
-
-The `general.num_ships` parameter will be respected by the script. If fewer ships are defined than specified by `num_ships`, the script will automatically generate additional ships by duplicating the existing ones to meet the required number.
-
----
-
-### Example Configuration
-
-Here is an example of a valid configuration file:
-
+### Exemple minimal
 ```yaml
 general:
-  num_ships: 5
-
-ships:
-  - name: [Ship 1]
-    capacity_max:
-      range: [20, 30000, 1000]
-
-storages:
-  - type: [Storage A]
-  - type: [Storage B]
-
+  num_period: 2000
+  num_period_per_hours: 1
+  num_ships: 2
+  distances:
+    Le Havre:
+      Rotterdam: 263
 factory:
-  name: Factory 1
-  location: [Port X]
+  name: Le Havre
+storages:
+  - name: Rotterdam
+ships:
+  - name: Ship 1
+  - name: Ship 2
+KPIS:
+  fuel_price_per_ton: 520
+allowed_speeds:
+  wind: {"6": 12, "10": 10, "20": 0}
+  wave: {"6": 12, "10": 10, "20": 0}
+  current: {"6": 12, "10": 10, "20": 0}
+weather_probability:
+  wind: 0.1
+  waves: 0.1
+  current: 0.1
 ```
 
-In this example:
-- The script will ensure there are **5 ships** in total (duplicating ships if necessary).
-- The first ship will have a `capacity_max` ranging from 20 to 30000, with an increment of 1000.
-- Two storage ports and a single factory are defined.
+---
+## 5. Scénarios & Optimisation
+Les scénarios YAML se trouvent dans `scenarios/` (ex: `scenarios/dev/...`).
+
+### Lancer une optimisation GA (NSGA3)
+```python
+from optimizer.ga_model import GAModel
+from optimizer.orchestrator import OptimizationOrchestrator
+from eco2_normandy.tools import get_simlulation_variable
+
+config, *_ = get_simlulation_variable("scenarios/dev/phase3_bergen_18k_2boats.yaml")
+model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
+opt = OptimizationOrchestrator(model, verbose=1)
+opt.optimize()
+opt.log_score()
+opt.save_solution()
+```
+
+### CP-SAT
+```python
+from optimizer.cp_model import CpModel
+from optimizer.orchestrator import OptimizationOrchestrator
+model = CpModel(config)
+opt = OptimizationOrchestrator(model)
+opt.optimize(max_evals=5)
+```
+
+### Comparaison / Pareto
+```python
+opt.plot_pareto()  # scatter matrices
+```
+Résultats CSV dans `saved/` (scores, solutions, pareto...).
 
 ---
-
-By adhering to the above configuration syntax, your file will be properly parsed, and the simulation will run as expected.
+## 6. KPI principaux
+Calculés dans `KPIS/kpis.py`:
+- Initial Investment:
+  - Storage Tank Purchase Cost
+  - Boat Purchase Cost
+- Functional Costs:
+  - Fuel Cost
+  - Boat Operational Costs (navigation + usage + staff)
+  - Boat Stoppage Cost (attente / immobilisation)
+  - Navigation Cost (décomposé dans operational)
+  - CO2 Storage Cost
+  - co2_released_cost (venting)
+  - Delay Cost (placeholder)
+  - Total Cost
+- Combined Total Cost = Investissement initial + Total Cost
+Autres métriques: wasted_production_over_time, waiting_time, underfill_rate, filling rates, navigating vs waiting time.
 
 ---
-
-### Final Notes
-
-- Make sure your configuration is structured correctly as described to avoid parsing errors.
-- The simulation handles a variety of factors affecting the transport of CO₂, from weather conditions to maintenance issues, ensuring a realistic model of the logistics involved.
+## 7. Structure (extrait)
+```
+eco2_normandy/     # Entités simulation (Factory, Storage, Ship, Weather, ...)
+KPIS/              # Calcul & graphiques KPI
+optimizer/         # Modèles d'optimisation (GA, CP) + orchestrateur
+GUI/               # Animation Pygame
+scenarios/         # Scénarios YAML
+streamlit_app.py   # UI interactive
+docs/              # Sphinx
+saved/             # Export des solutions & scores
+```
 
 ---
-
-## Project Overview
-
-This project models the transport of liquefied CO₂ between a liquefaction port (Factory) and one or more storage ports (Storage). The transportation is done by ship.
+## 8. Développement
+Tests (pytest):
+```bash
+poetry run pytest -q
+```
+Formatage:
+```bash
+poetry run black .
+```
+Lister l’arborescence Python:
+```bash
+make py-tree
+```
 
 ---
+## 9. Documentation Sphinx
+Construire la doc HTML:
+```bash
+make -C docs html
+open docs/build/html/index.html
+```
 
-## Entities and Components
+---
+## 10. Entités & logique (résumé)
+Factory: production, maintenance (scheduled / unscheduled), pompes de chargement, pénalités de venting.
+Storage: réception, pompes de déchargement, capacité & coûts de stockage.
+Ship: états (DOCKED, DOCKING, WAITING, NAVIGATING, LOADING, UNLOADING), vitesse contrainte par météo, pilotes / lock / docks.
+WeatherStation: génère conditions impactant la vitesse.
+StateSaver: collecte des états à chaque période.
 
-### Liquefaction Port (Factory)
+---
+## 11. Notes
+- Les valeurs de coût peuvent être ajustées dans la section `KPIS` du config.
+- `num_period` * (1/`num_period_per_hours`) = nombre d’heures simulées.
+- Pour analyser une solution optimisée, reconstruire le config via `OptimizationOrchestrator.build_config_from_solution` puis rejouer Simulation / Pygame.
 
-- **Production Maintenance**: Maintenance phases may impact the production of liquefied CO₂, slowing down the rate at which the tanks are filled.
-- **Pump Maintenance**: The pumps used to load a ship may undergo maintenance phases, reducing the speed at which a ship is filled.
-- **Excess CO₂**: If the tanks are full while production is ongoing, extra CO₂ must be vented, which incurs a fee.
+---
+## Licence
+Ajouter ici la licence si nécessaire (MIT / Proprietary…).
 
-#### Key Elements at the Liquefaction Port:
-- **Tanks**: Store the CO₂ before it’s loaded onto the ship.
-- **Production Pumps**: Fill the tanks with liquefied CO₂.
-- **Loading Pumps**: Transfer CO₂ from tanks to the ship.
-- **Docks**: Locations where ships dock to load the CO₂.
-
-### Storage Port (Storage)
-
-- **Pump Maintenance**: Slows down unloading from the ship.
-  
-#### Key Elements at the Storage Port:
-- **Unloading Pumps**: Offload CO₂ from the ship.
-
-### Ship (Ship)
-
-- **Weather Impact**: The ship's navigation can be affected by weather conditions:
-    - **During Navigation**: The ship's speed will decrease depending on the severity of the weather.
-    - **At Dock**: Ships may have to wait in port until bad weather passes.
-  
-- **Docks**: Ships require an available dock to be able to dock.
-- **Pilot**: A pilot is required for a ship to enter or leave port. There is a 2-hour wait time for this, which can be buffered while docked.
-- **Lock**: Liquefaction ports have locks for ship access. Ships can only enter or exit if the lock is available.
+---
+Pull requests & issues bienvenus.
 
