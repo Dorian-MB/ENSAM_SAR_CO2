@@ -47,14 +47,14 @@ class Logger:
         self.set_console_format()
         self.set_file_format()
     
-    def set_console_format(self, format="\033[1m%(levelname)s\033[0m :\t%(message)s",end="\n"):
+    def set_console_format(self, format_="\033[1m%(levelname)s\033[0m :\t%(message)s",end=""):
         """Change le format du handler console."""
-        formatter = logging.Formatter(format + end)
+        formatter = logging.Formatter(format_ + end)
         self.console_handler.setFormatter(formatter)
 
-    def set_file_format(self, format="-- %(levelname)s -- %(asctime)s\n%(message)s", end="\n"):
+    def set_file_format(self, format_="-- %(levelname)s -- %(asctime)s\n%(message)s", end="\n"):
         """Change le format du handler fichier."""
-        formatter = logging.Formatter(format + end)
+        formatter = logging.Formatter(format_ + end)
         self.file_handler.setFormatter(formatter)
 
     def setLevel(self, level):

@@ -278,66 +278,6 @@ class ConfigBuilderFromSolution:
             cfg["ships"][i]["speed_max"] = sol[f"ship_speed"]
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
-
-    #! not needed anymore
-    def decode_and_repair(self, x, max_ships):
-        """
-        Decode the decision vector x into a solution dict and enforce storage consistency.
-        """
-        sol = {}
-        idx = 0
-        # High-level variables
-        sol['num_storages']       = int(x[idx]); idx += 1
-        sol['use_Bergen']         = int(x[idx]); idx += 1
-        sol['use_Rotterdam']      = int(x[idx]); idx += 1
-        sol['num_ship']           = int(x[idx]); idx += 1
-        sol['ship_speed']         = int(x[idx]); idx += 1
-        sol['number_of_tanks']    = int(x[idx]); idx += 1
-        sol['ship_capacity']      = int(x[idx]); idx += 1
-        sol['storage_caps']       = int(x[idx]); idx += 1
-        # Per-ship destinations
-        for i in range(max_ships):
-            sol[f'init{i+1}_destination'] = int(x[idx]); idx += 1
-            sol[f'fixed{i+1}_storage_destination'] = int(x[idx]); idx += 1
-
-        #* Done with pymoo.[...].Repair
-        # # Repair storage flags based on num_storages and per-ship destinations
-        # if sol['num_storages'] >= 2:
-        #     sol['use_Bergen']    = 1
-        #     sol['use_Rotterdam'] = 1
-        # else:
-        #     flags = [sol[f'fixed{i+1}_storage_destination'] for i in range(max_ships)]
-        #     if any(f == 1 for f in flags):
-        #         sol['use_Bergen']    = 1
-        #         sol['use_Rotterdam'] = 0
-        #     else:
-        #         sol['use_Bergen']    = 0
-        #         sol['use_Rotterdam'] = 1
-        #     sol['num_storages'] = sol['use_Bergen'] + sol['use_Rotterdam']
-
-        return sol
-
-# Logger for multiprocessing (base logging python package throw error while multiprocessing)
-class LoggerForMultiprocessing:
-    """
-    Substitue à un logger pour les environnements de multiprocessing.
-    Logger classique ne support pas le multiprocessing.
-    """
-
-    def debug(self, message: str):
-        print("DEBUG:" + message)
-
-    def info(self, message: str):
-        print("INFO: " + message)
-
-    def error(self, message: str):
-        print("ERROR: " + message)
-
-    def warning(self, message: str):
-        print("WARNING: " + message)
-    
-    def critical(self, message: str):
-        print("CRITICAL: " + message)
     
 # No profiler class (cprofile)
 class NoProfiler:

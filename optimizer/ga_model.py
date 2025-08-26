@@ -25,7 +25,6 @@ from scipy.special import comb
 
 from optimizer.boundaries import ConfigBoundaries
 from optimizer.utils import (ConfigBuilderFromSolution, 
-                            LoggerForMultiprocessing, 
                             calculate_performance_metrics, 
                             Normalizer)
 from eco2_normandy.simulation import Simulation
@@ -204,7 +203,6 @@ class SimulationProblem(ElementwiseProblem):
         
         # Variables per ship (destinations) with explicit choices
         for i in range(boundaries.max_num_ships):
-            #! Fixed indexing: must match ConfigBuilderFromSolution.build() format
             self.variables[f'init{i+1}_destination'] = Choice(options=[0, 1, 2])  # Le Havre, Rotterdam, Bergen
             self.variables[f'fixed{i+1}_storage_destination'] = Choice(options=[0, 1])  # Rotterdam, Bergen
 
@@ -322,7 +320,7 @@ class GAModel:
         self.weights = weights or Normalizer().metrics_weight
         self.verbose = verbose
         # logger cant be parallelized, so we use print
-        self.log = (logger or Logger()) if not parallelization else LoggerForMultiprocessing()
+        self.log = logger or Logger()
         self.parallelization = parallelization
         self.n_pool = n_pool if parallelization else 1
         self.manager = Manager() if parallelization else None
@@ -502,7 +500,7 @@ class GAModel:
     def log_score(self):
         if self.res is None:
             raise RuntimeError('No results available. Call solve() first.')
-        #  logging
+
         self.log.info(Fore.LIGHTCYAN_EX + f"Best solution score {Fore.RESET}{self.best_score['score']}")
         self.log.info(Fore.LIGHTCYAN_EX + f"Objectives:\n{Fore.RESET}{self.best_score.drop('score')}")
         self.log.info(Fore.LIGHTCYAN_EX + f"Solution:\n{Fore.RESET}{self.best_solution}")
