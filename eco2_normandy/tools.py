@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import itertools
 import yaml
-import logging
 
 from .factory import Factory
 from .storage import Storage
@@ -92,7 +91,12 @@ def get_destination_from_name(
     for s in storages:
         if s.name == name:
             return s
-    raise ValueError(f"Destination {name} not found in factory or storages.")
+    error_msg = f"""
+    Destination {name} not found in factory or storages.
+    Available factory: {factory.name},
+    Available storages: {', '.join([s.name for s in storages])}
+    """
+    raise ValueError(error_msg)
 
 def generate_combinations(parameter_ranges) -> list:
     if isinstance(parameter_ranges, dict) and "range" in parameter_ranges:

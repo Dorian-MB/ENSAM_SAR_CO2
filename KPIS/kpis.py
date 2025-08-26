@@ -24,6 +24,23 @@ class Kpis:
 
     def get_non_numpy_sol(self, dic):
         return {k:float(v) for k, v in dic.items()}
+    
+    # TODO: check if working
+    def safe_float_conversion(self, val, default=0.0):
+        """
+        Safely convert a value to float, handling pandas Series from MultiIndex DataFrames.
+        
+        Args:
+            val: Value to convert (could be scalar, Series, etc.)
+            default: Default value if conversion fails
+            
+        Returns:
+            float: Converted value
+        """
+        if isinstance(val, pd.Series):
+            return float(val.iloc[0] if len(val) > 0 else default)
+        else:
+            return float(val)
 
     def _to_MultiIndex_dfs(self, dic):
         return to_MultiIndex_dfs(dic)
@@ -130,13 +147,13 @@ class Kpis:
         ships_df = self.dfs[self.ship_names]
 
         initial_row_factory = factory_df.iloc[0]
-        num_factory_tanks = float(initial_row_factory.get("number_of_tanks", 1))
-        cost_per_tank = float(initial_row_factory.get("cost_per_tank", 1))
+        num_factory_tanks = self.safe_float_conversion(initial_row_factory.get("number_of_tanks", 1))
+        cost_per_tank = self.safe_float_conversion(initial_row_factory.get("cost_per_tank", 1))
         scale_ratio = 1.2
         tank_total_cost_in_factory = num_factory_tanks * cost_per_tank * scale_ratio
 
         initial_row_ship = ships_df[self.ship_names[0]].iloc[0]
-        total_ships_buying_costs = initial_row_ship.get("ship_buying_cost", 1) * self.config["general"].get("number_of_ships", 1)
+        total_ships_buying_costs = self.safe_float_conversion(initial_row_ship.get("ship_buying_cost", 1)) * self.config["general"].get("number_of_ships", 1)
 
         initial_investment = {
             "Storage Tank Purchase Cost": tank_total_cost_in_factory,
@@ -161,10 +178,10 @@ class Kpis:
 
             # Get cost parameters from the first row of the corresponding ships dataframe
             ship_params = ships_df[ship].iloc[0]
-            fuel_consumption = float(ship_params.get("fuel_consumption_per_day", 0)) 
-            staff_cost = float(ship_params.get("staff_cost_per_hour", 0))
-            usage_cost = float(ship_params.get("usage_cost_per_hour", 0))
-            immobilization_cost = float(ship_params.get("immobilization_cost_per_hour", 0))
+            fuel_consumption = self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0))
+            staff_cost = self.safe_float_conversion(ship_params.get("staff_cost_per_hour", 0))
+            usage_cost = self.safe_float_conversion(ship_params.get("usage_cost_per_hour", 0))
+            immobilization_cost = self.safe_float_conversion(ship_params.get("immobilization_cost_per_hour", 0))
 
             fuel_cost += days_navigating * fuel_consumption * self.kpis.get("fuel_price_per_ton", 0)
             ships_navigation_cost += n_actions / num_period_per_hours * (staff_cost + usage_cost)
@@ -176,8 +193,8 @@ class Kpis:
         co2_storage_cost = 0
         for storage in self.storage_names:
             last_storage_state = storages_df[storage].iloc[-1]
-            received_co2 = float(last_storage_state.get("received_co2_over_time", 0))
-            storage_cost_rate = float(last_storage_state.get("storage_cost_per_m3", 0))
+            received_co2 = self.safe_float_conversion(last_storage_state.get("received_co2_over_time", 0))
+            storage_cost_rate = self.safe_float_conversion(last_storage_state.get("storage_cost_per_m3", 0))
             co2_capacity_stored += received_co2
             co2_storage_cost += received_co2 * storage_cost_rate
 

@@ -13,6 +13,7 @@ from colorama import Fore
 from eco2_normandy.logger import Logger
 from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
 from optimizer.compare_scenarios import print_diffs
+from optimizer.boundaries import ConfigBoundaries
 
 class OptimizationOrchestrator:
     """
@@ -27,7 +28,8 @@ class OptimizationOrchestrator:
         self.verbose = verbose
         self.enable_cprofile = enable_cprofile
         self.profiler = None
-        self.cfg_builder = ConfigBuilderFromSolution(model.base_config)
+        self.boundaries = ConfigBoundaries(verbose=0)
+        self.cfg_builder = ConfigBuilderFromSolution(model.base_config, self.boundaries)
         self.full_results = None
 
     def set_model_callback(self, *args, **kwargs)->None:
@@ -42,7 +44,7 @@ class OptimizationOrchestrator:
         """
         self.model.base_config = base_config
         self.model.callbacks.base_config = base_config # todo : erreur si GaModel
-        self.cfg_builder = ConfigBuilderFromSolution(base_config)
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
     
     def compare_solution_to_base_config(self, solution):
         sol_cfg = self.cfg_builder.build(solution)
@@ -187,7 +189,6 @@ class OptimizationOrchestrator:
             self.elapsed_time = time.perf_counter() - t 
             time.sleep(0.5)  # Allow time for the solver to finish logging
         except Exception as e:
-            self.log.error(f"Error occurred during model solve: {e}")
             raise e
         finally:
             self.cprofile(close=True)
