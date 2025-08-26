@@ -93,18 +93,19 @@ class ConfigBoundaries:
         if verbose > 0: self.log.info(Fore.YELLOW+f"Loading boundaries from {Fore.CYAN+str(path.resolve())}"+Fore.RESET)
         if path.is_file():
             with open(path, 'r') as f:
-                self.boundaries = yaml.safe_load(f)
+                self._boundaries = yaml.safe_load(f)
                 if verbose > 0: self.log.info(Fore.GREEN+f"Boundaries loaded"+Fore.RESET)
         else:
             self.log.info(Fore.LIGHTRED_EX+f"{boundaries_yaml} not found,{Fore.YELLOW} generating boundaries from scenarios in {scenarios_path}"+Fore.RESET)
             init_configs(scenarios_path)
-            self.boundaries = get_boundaries()
+            self._boundaries = get_boundaries()
 
-        self.max_num_storages = int(self.boundaries.get("storages.num_storages")["constant"] + 1)
-        self.ship_capacity_min = int(self.boundaries.get("ships.capacity_max")["min"])
-        self.ship_capacity_max = int(self.boundaries.get("ships.capacity_max")["max"])
-        self.max_num_ships = int(self.boundaries.get("ships.num_ships")["max"])                 
-        self.ship_speed_min, self.ship_speed_max = int(self.boundaries.get("ships.speed_max")["min"]), int(self.boundaries.get("ships.speed_max")["max"])
+        self.max_num_storages = int(self._boundaries.get("storages.num_storages")["constant"] + 1)
+        self.ship_capacity_min = int(self._boundaries.get("ships.capacity_max")["min"])
+        self.ship_capacity_max = int(self._boundaries.get("ships.capacity_max")["max"])
+        self.max_num_ships = int(self._boundaries.get("ships.num_ships")["max"])                 
+        self.ship_speed_min, self.ship_speed_max = int(self._boundaries.get("ships.speed_max")["min"]), int(self._boundaries.get("ships.speed_max")["max"])
+        
         self.initial_destination = 2 # 0=factory, 1=Rotterdam, 2=Bergen 
         self.fixed_storage_destination = 1  # 1=Bergen, 0=Rotterdam 
         self.verbose = verbose
