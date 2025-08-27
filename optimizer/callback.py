@@ -18,6 +18,7 @@ class SimCallback(CpSolverSolutionCallback):
                  max_evals:int=50, 
                  verbose:int=True, 
                  metrics_keys:list[str]=metrics_keys, 
+                 boundaries=None,
                  logger=None, 
                  ):
         super().__init__()
@@ -33,7 +34,8 @@ class SimCallback(CpSolverSolutionCallback):
         self.surrogate_met = []
 
         self.normalize = Normalizer()
-        self.cfg_builder = ConfigBuilderFromSolution(base_config)
+        self.boundaries = boundaries
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, boundaries)
         self.pareto_front = ParetoFront(self.metrics_keys) 
         self.surrogate_front = ParetoFront() 
 
