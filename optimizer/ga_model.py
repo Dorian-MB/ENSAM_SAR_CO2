@@ -273,14 +273,13 @@ class SimulationProblem(ElementwiseProblem):
         
         return np.array(x_array)
 
-    def _run_simulation(self, cfg, x=None):
+    def _run_simulation(self, cfg):
         """Run the simulation with animation."""
         sim = Simulation(config=cfg, verbose=False)
         try: 
             sim.run()
         except Exception as e:
             self.log.error(Fore.RED+f"Simulation failed, config: {cfg}"+Fore.RESET)
-            self.log.error(Fore.RED+ f"{x}" +Fore.RESET)
             raise e
         return sim
 
@@ -290,7 +289,7 @@ class SimulationProblem(ElementwiseProblem):
         
         # Build simulation config directly from variable dict  
         cfg = self.cfg_builder.build(x_dict)
-        sim = self._run_simulation(cfg, x=x_dict)
+        sim = self._run_simulation(cfg)
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
         
         # Assign objectives
@@ -396,9 +395,9 @@ class GAModel:
             pool = Pool(self.n_pool)  
             runner = StarmapParallelization(pool.starmap)
             kpis_list = self.manager.list()
-            self.log.info(f"Using parallelization with {self.n_pool} processes.")
+            if self.verbose: self.log.info(f"Using parallelization with {self.n_pool} processes.")
         else:
-            self.log.info("Using single-threaded evaluation.")
+            if self.verbose: self.log.info("Using single-threaded evaluation.")
             pool = None
             runner = LoopedElementwiseEvaluation() # lambda f, X: [f(x) for x in X]
             kpis_list = []
@@ -462,6 +461,7 @@ class GAModel:
 
         F_norm = self.normalize(F)
         self.scores["score"] = self.normalize.compute_score(F_norm)
+        self.scores.index.name = 'solution_id'
 
         for idx, x in enumerate(X):
             # Convert array to dictionary (steps applied automatically)
@@ -470,6 +470,7 @@ class GAModel:
 
         idx, data = zip(*[(next(iter(s)), next(iter(s.values()))) for s in solutions])
         self.solutions = pd.DataFrame(data, index=idx)
+        self.solutions.index.name = 'solution_id'
 
     @property
     def front_idx(self):
@@ -487,7 +488,8 @@ class GAModel:
     def pareto_front(self):
         if not self.istrain:
             raise RuntimeError('No results available. Call solve() first.')
-        return pd.DataFrame([self.res.F[idx] for idx in self.front_idx])
+        F = self.res.F[self.front_idx]
+        return pd.DataFrame(F, columns=self.problem.metrics_keys, index=[f"solution_{i}" for i in range(len(F))])
 
     @property
     def best_score(self):

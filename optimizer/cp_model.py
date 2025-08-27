@@ -16,13 +16,14 @@ metrics_keys = Normalizer().metrics_keys
 metrics_weight = Normalizer().metrics_weight
 
 class CpModel(cp_model.CpModel):
-    def __init__(self, config, algorithm:str="SearchForAllSolutions",
+    def __init__(self, config, algorithm:str="SearchForAllSolutions", caps_step=1000,
                  metrics_keys=metrics_keys, metrics_weight=metrics_weight,
                  logger=None, verbose=1, *args, **kwargs):     
         super().__init__(*args, **kwargs)
         self.base_config = config
         self.metrics_keys = metrics_keys
         self.metrics_weight = metrics_weight
+        self.caps_step = caps_step
         self.verbose = verbose
         self.boundaries =  ConfigBoundaries() 
         self.log = logger or Logger()
@@ -35,7 +36,7 @@ class CpModel(cp_model.CpModel):
         self.vars = {}
         self.istrain = False
         self.max_time_in_seconds = None
-        self.cfg_builder = ConfigBuilderFromSolution(config)
+        self.cfg_builder = ConfigBuilderFromSolution(config, self.boundaries)
 
     def _get_alogorithm(self, algorithm):
         if algorithm=="SearchForAllSolutions":
@@ -63,6 +64,8 @@ class CpModel(cp_model.CpModel):
         ship_cap_min, ship_cap_max = self.boundaries.ship_capacity["min"], self.boundaries.ship_capacity["max"]
         max_num_ships = self.boundaries.max_num_ships
         min_speed, max_speed = self.boundaries.ship_speed["min"], self.boundaries.ship_speed["max"]
+        storage_caps_min, storage_caps_max = self.boundaries.storage_caps["min"], self.boundaries.storage_caps["max"]
+        tanks_min, tanks_max = self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"]
         initial_destination = self.boundaries.initial_destination # 0=factory, 1=Rotterdam, 2=Bergen
         fixed_storage_destination = self.boundaries.fixed_storage_destination  # 1=Bergen, 0=Rotterdam
 
@@ -99,10 +102,9 @@ class CpModel(cp_model.CpModel):
             self.Add(self.vars["fixed_storage_destination"][i] == 0) \
                 .OnlyEnforceIf(self.vars["ship_used"][i].Not())
 
-        self._add_int_variables(ship_cap_min//1000, ship_cap_max//1000, name="ship_units")  
-        self.Add(self.vars["ship_capacity"] == 1_000*self.vars["ship_units"])
+        self._add_int_variables(ship_cap_min//self.caps_step, ship_cap_max//self.caps_step, name="ship_units")
+        self.Add(self.vars["ship_capacity"] == self.caps_step*self.vars["ship_units"])
 
-        #! ---- Contraintes ---- 
 
         ship_used = self.vars["ship_used"]
         [self.Add(ship_used[i]>=ship_used[i+1]) for i in range(max_num_ships-1)]  # les navires utilisés sont consécutifs
@@ -122,6 +124,19 @@ class CpModel(cp_model.CpModel):
                 .OnlyEnforceIf(self.vars["use_Rotterdam"].Not())
             self.Add(self.vars["fixed_storage_destination"][i] != 0) \
                 .OnlyEnforceIf(self.vars["use_Rotterdam"].Not())
+
+        self._add_int_variables(
+            min=storage_caps_min,
+            max=storage_caps_max,
+            name="storage_caps"
+        )
+        self._add_int_variables(storage_caps_min//self.caps_step, storage_caps_max//self.caps_step, name="storage_units")
+        self.Add(self.vars["storage_caps"] == self.caps_step*self.vars["storage_units"])
+        self._add_int_variables(
+            min=tanks_min,
+            max=tanks_max,
+            name="number_of_tanks"
+        )
         
         self.callback_vars = flatten(self.vars.values())
 
@@ -198,7 +213,7 @@ class CpModel(cp_model.CpModel):
 
     def _set_callback(self, Callback=SimCallback, 
                      max_evals=50, 
-                     verbose=1, 
+                     verbose=None, 
                      max_time_in_seconds=None,
                      metrics_keys=None, 
                     ):
@@ -206,6 +221,7 @@ class CpModel(cp_model.CpModel):
                                     base_config=self.base_config, 
                                     max_evals=max_evals, 
                                     metrics_keys=metrics_keys or self.metrics_keys,
+                                    boundaries=self.boundaries,
                                     verbose=verbose or self.verbose)
         if isinstance(max_time_in_seconds, (int, float)):
             self.solver.parameters.max_time_in_seconds = int(max_time_in_seconds)
@@ -265,7 +281,7 @@ class CpModel(cp_model.CpModel):
         if hasattr(self, "heuristic_sol"):
             score_heuristic = self.evaluate(self.cfg_builder.build_heuristic(self.heuristic_sol)).iloc[0]
             self.log.info(Fore.GREEN + "=== Heuristic solution ===" + Fore.RESET)
-            self.log.info(score_heuristic)
+            self.log.info(f"\n{score_heuristic}")
             self.log.info(Fore.BLUE + f"Score heuristic: {score_heuristic['score']:,.0f}" + Fore.RESET)
         else:
             self.log.info(Fore.RED + "=== No heuristic solution found ===" + Fore.RESET)
@@ -321,7 +337,7 @@ class CpModel(cp_model.CpModel):
         if self.istrain is False:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
             return None
-        cfg = ConfigBuilderFromSolution(cfg).build(self.best_solution)
+        cfg = ConfigBuilderFromSolution(cfg, self.boundaries).build(self.best_solution)
         sim = self.callback.run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
