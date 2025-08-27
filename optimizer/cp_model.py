@@ -16,9 +16,9 @@ metrics_keys = Normalizer().metrics_keys
 metrics_weight = Normalizer().metrics_weight
 
 class CpModel(cp_model.CpModel):
-    def __init__(self, config, algorithm:str="SearchForAllSolutions", caps_step=1000,
-                 metrics_keys=metrics_keys, metrics_weight=metrics_weight,
-                 logger=None, verbose=1, *args, **kwargs):     
+    def __init__(self, config:dict, algorithm:str="SearchForAllSolutions", caps_step:int=1000,
+                 metrics_keys:list=metrics_keys, metrics_weight:list=metrics_weight,
+                 logger=None, verbose:int=1, *args, **kwargs):     
         super().__init__(*args, **kwargs)
         self.base_config = config
         self.metrics_keys = metrics_keys
@@ -48,7 +48,7 @@ class CpModel(cp_model.CpModel):
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}. Available algorithms: 'SearchForAllSolutions', 'HybridSearch', 'HeuristicSolve'.")
 
-    def _add_int_variables(self, min, max, names=[], name=""):
+    def _add_int_variables(self, min:int|list, max:int|list, names:list=[], name:str=""):
         """Helper function to add integer variables with a name."""
         if name not in self.vars:
             if isinstance(min, list) and isinstance(max, list) and isinstance(names, list):
@@ -226,7 +226,7 @@ class CpModel(cp_model.CpModel):
         if isinstance(max_time_in_seconds, (int, float)):
             self.solver.parameters.max_time_in_seconds = int(max_time_in_seconds)
 
-    def HeuristicSolve(self, max_time_in_seconds=30):
+    def HeuristicSolve(self, max_time_in_seconds:int=30)->dict:
             """Phase 1: CP‐only solve with surrogate objective."""
             self._add_heuristic_objectives()
 
@@ -246,7 +246,7 @@ class CpModel(cp_model.CpModel):
                 self.log.info(self.heuristic_sol)
             return self.heuristic_sol
 
-    def HybridSearch(self, max_time_callback=None, max_time_heuristic=30,max_time_in_seconds=None, **kawargs):
+    def HybridSearch(self, max_time_callback:int|None=None, max_time_heuristic:int=30, max_time_in_seconds:int|None=None, **kwargs)->None:
         if max_time_callback is None :
             max_time_callback = max_time_in_seconds
         # 1) Heuristic phase
@@ -259,9 +259,9 @@ class CpModel(cp_model.CpModel):
 
         # 3) Full enumeration with Callback
         if self.verbose: self.log.info(Fore.GREEN + "=== Phase 2: Full enumeration with SimCallback ===" + Fore.RESET)
-        self.SearchForAllSolutions(max_time_in_seconds=max_time_callback, **kawargs)
+        self.SearchForAllSolutions(max_time_in_seconds=max_time_callback, **kwargs)
 
-    def SearchForAllSolutions(self, Callback=SimCallback, **kwargs):
+    def SearchForAllSolutions(self, Callback=SimCallback, **kwargs)->None:
         self.istrain = True
         self._add_callback_objective()
         self._set_callback(Callback=Callback, **kwargs)
@@ -276,7 +276,7 @@ class CpModel(cp_model.CpModel):
             self.log.error(Fore.RED + f"An error occurred while running `{self.algorithm_name}`" + Fore.RESET)
             raise e
 
-    def log_score(self): 
+    def log_score(self)->None: 
         best_score = self.best_score
         if hasattr(self, "heuristic_sol"):
             score_heuristic = self.evaluate(self.cfg_builder.build_heuristic(self.heuristic_sol)).iloc[0]
@@ -296,32 +296,32 @@ class CpModel(cp_model.CpModel):
             self.log.info(Fore.RED + "=== Aucune callback solution trouvée ===" + Fore.RESET)
 
     @property
-    def scores(self):
+    def scores(self)->pd.DataFrame:
         return self.callback.raw_metrics
     
     @property
-    def solutions(self):
+    def solutions(self)->pd.DataFrame:
         return self.callback.solutions
 
     @property
-    def best_score(self):
+    def best_score(self)->pd.Series:
         return self.callback.best_raw_score()
 
     @property
-    def best_solution(self):
+    def best_solution(self)->pd.Series:
         return self.solutions.loc[self.best_score.name]
 
     @property
-    def dynamic_bounds(self):
+    def dynamic_bounds(self)->pd.DataFrame:
         bounds = pd.DataFrame(self.callback.dynamic_bounds, index=["min", "max"])
         bounds.index.name = "bounds"
         return bounds
 
     @property
-    def pareto_front(self):
+    def pareto_front(self)->pd.DataFrame:
         return pd.DataFrame(self.callback.pareto_front.get_front()).T
 
-    def data_to_saved(self):
+    def data_to_saved(self)->dict:
         return {
             "solutions": self.solutions,
             "scores": self.scores,
@@ -336,14 +336,14 @@ class CpModel(cp_model.CpModel):
         """
         if self.istrain is False:
             self.log.error(Fore.RED + "Model not trained yet. Please train the model before evaluating a configuration." + Fore.RESET)
-            return None
+            raise ValueError("Model not trained yet.")
         cfg = ConfigBuilderFromSolution(cfg, self.boundaries).build(self.best_solution)
         sim = self.callback.run_simulation(cfg)
         if sim is None:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
-            return None
+            raise ValueError("Simulation failed.")
         metrics = self.callback.calculate_performance_metrics(cfg, sim)
-        norm_metrics = self.callback.normalize(metrics)
+        norm_metrics = self.callback.normalize(metrics, clip=clip)
         metrics["score"] = self.callback.normalize.compute_score(norm_metrics)
         return metrics
 

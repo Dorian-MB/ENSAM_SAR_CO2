@@ -11,7 +11,7 @@ from eco2_normandy.simulation import Simulation
 from eco2_normandy.tools import get_simlulation_variable
 from KPIS import Kpis
 
-def flatten(lst): 
+def flatten(lst:list[list|any]) -> list: 
     return [item for elem in lst for item in (flatten(elem) if isinstance(elem, list) else [elem])]
 
 ## Pareto ####################################################################
@@ -49,7 +49,7 @@ class ParetoFront:
             self.add(row)
         return pd.DataFrame([entry for entry, _ in self.front])
 
-    def is_dominated(self, metrics):
+    def is_dominated(self, metrics:dict)->bool:
         """Vérifie si la solution metrics est dominée par une solution du front."""
         for entry, _ in self.front:
             if dominates(entry, metrics):
@@ -166,8 +166,8 @@ def evaluate_single_scenario(scenario: dict, return_score: bool=True) -> pd.Data
 
 
 
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 10, 15]
+metrics_keys:list[str] = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
+metrics_weight:list[int] = [20, 20, 10, 15]
 class Normalizer:
     """Normalize KPI values.
     """
@@ -214,8 +214,8 @@ class ConfigBuilderFromSolution:
             return self.build_heuristic(sol)
         else :
             return self.build(sol)
-        
-    def predict_cost(self, x, X, Y):
+
+    def predict_cost(self, x:int, X:tuple, Y:tuple) -> int:
         """Predict the cost for a given input.
 
         Args:
@@ -230,7 +230,7 @@ class ConfigBuilderFromSolution:
         ordonnee = Y[0] - pente * X[0]
         return pente * x + ordonnee
 
-    def _get_storage_name(self, sol, i):
+    def _get_storage_name(self, sol:dict, i:int)->str:
         if sol["use_Bergen"] and sol["use_Rotterdam"]:
             return ["Bergen", "Rotterdam"][i]
         elif sol["use_Bergen"]:
