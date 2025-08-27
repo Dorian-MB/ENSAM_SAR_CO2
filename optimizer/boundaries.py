@@ -159,9 +159,9 @@ class KpisBoundaries:
             self.kpis_boundaries = pd.read_csv(str(self.path), index_col="bounds").T
         else:
             if verbose > 0: self.log.info(Fore.LIGHTRED_EX+f"{kpis_boundaries_file} not found, generating KPIs boundaries from scenarios"+Fore.RESET)
-            self.kpis_boundaries = self._compute_kpis_boundaries()
+            self.kpis_boundaries = self._compute_and_save_kpis_boundaries()
             
-    def _compute_kpis_boundaries(self):
+    def _compute_and_save_kpis_boundaries(self):
         """
         Compute the boundaries for KPIs from the scenarios.
         """
@@ -189,7 +189,7 @@ class KpisBoundaries:
             kpis_bounds={self.kpis_boundaries.to_dict(orient="index")}
             )"""
 
-def get_kpis_boundaries():
+def get_kpis_boundaries()->pd.DataFrame:
     return KpisBoundaries(verbose=0).kpis_boundaries
 
 if __name__ == "__main__":

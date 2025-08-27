@@ -21,8 +21,8 @@ class OptimizationOrchestrator:
     This class provides a framework for implementing various optimization strategies.
     """
 
-    def __init__(self, model, logger:Logger=None, verbose:int|bool=1,
-                enable_cprofile=False)->None:
+    def __init__(self, model, logger:Logger|None=None, verbose:int|bool=1,
+                enable_cprofile:bool=False)->None:
         self.log = logger or Logger()
         self.model = model
         self.verbose = verbose
@@ -45,8 +45,8 @@ class OptimizationOrchestrator:
         self.model.base_config = base_config
         self.model.callbacks.base_config = base_config # todo : erreur si GaModel
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
-    
-    def compare_solution_to_base_config(self, solution):
+
+    def compare_solution_to_base_config(self, solution:dict)->None:
         sol_cfg = self.cfg_builder.build(solution)
         print_diffs(sol_cfg, self.model.base_config) # todo: ajouter un print pour mieux differencier les 2 scenarios
     
@@ -80,11 +80,11 @@ class OptimizationOrchestrator:
             results.append(r)
         return pd.concat(results, axis=0).sort_index()
 
-    def evaluate(self, scenario):
+    def evaluate(self, scenario:dict)->pd.DataFrame:
         return self.model.evaluate(scenario)
 
     @staticmethod
-    def evaluate_defaults_scenarios(num_period=2000, path:str="scenarios", scenario_filter:str="phase",)->pd.DataFrame:
+    def evaluate_defaults_scenarios(num_period:int=2000, path:str="scenarios", scenario_filter:str="phase")->pd.DataFrame:
         """Evaluate the default scenario.
 
         Args:
@@ -107,15 +107,23 @@ class OptimizationOrchestrator:
     def evaluate_base_scenario(self):
         return evaluate_single_scenario(self.model.base_config)
 
-    def plot_pareto(self, scores:pd.DataFrame=None, figsize:tuple=(15, 15))->None:
+    def plot_pareto(self, scores:pd.DataFrame|None=None, figsize:tuple|list=(15, 15))->None:
         """Plot the pareto front of the optimization.
 
         Args:
-            results (pd.DataFrame): DataFrame containing the results of the optimization.
+            results (pd.DataFrame): DataFrame containing the results of the optimization. default use model best score
 
         return None: Displays the plots of the results.
         4x3 scatter plots of the results metrics.
         Each row corresponds to a metric, and each column corresponds to the other metrics.
+
+        equivalent of :
+        from pymoo.visualization.scatter import Scatter
+        plot = Scatter()
+        plot.add(model.problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
+        plot.add(model.res.F, facecolor="none", edgecolor="red")
+        plot.show()
+        
         """
         import matplotlib.pyplot as plt
         scores = scores if scores is not None else self.model.scores
@@ -143,18 +151,15 @@ class OptimizationOrchestrator:
                 fig.tight_layout()
         plt.show()
             
-    def cprofile(self, profiler=None, init=False, close=False, result=False, n:int=10):
+    def cprofile(self, init:bool=False, close:bool=False, result:bool=False, n:int=10)->None:
         """ init or close cProfile for the optimization process. Can also access the results.
 
         Args:
-            profiler (_type_, optional): instance of cProfile.Profile(). Defaults to None.
             init (bool, optional): init cprofiler . Defaults to False.
             close (bool, optional): close cprofiler . Defaults to False.
             result (bool, optional): get cprofil result. Defaults to False.
             n (int, optional): n first function calls. Defaults to 10.
 
-        Returns:
-            _type_: None
         """
         assert init + close + result <= 1, "Only one of init, close, or result can be True."
         if init:
@@ -165,9 +170,8 @@ class OptimizationOrchestrator:
             self.profiler.enable()
             return 
                 
-        profiler = profiler or self.profiler
         if close and self.enable_cprofile:
-            profiler.disable()
+            self.profiler.disable()
             self.log.info(Fore.YELLOW + "=== Profiling disabled ===" + Fore.RESET)
             return
         elif not self.enable_cprofile:
@@ -175,7 +179,7 @@ class OptimizationOrchestrator:
         
         
         if result and self.enable_cprofile:
-            stats = pstats.Stats(profiler, stream=sys.stdout)
+            stats = pstats.Stats(self.profiler, stream=sys.stdout)
             stats.sort_stats('cumulative')
             stats.print_stats(n)
         elif not self.enable_cprofile:
@@ -192,8 +196,8 @@ class OptimizationOrchestrator:
             raise e
         finally:
             self.cprofile(close=True)
-        
-    def optimize(self, *args, **kwargs):
+
+    def optimize(self, *args, **kwargs)->None:
         """
         Run the optimization algorithm.
         """
@@ -201,14 +205,14 @@ class OptimizationOrchestrator:
             kwargs['verbose'] = self.verbose
         self._start_model_solve(*args, **kwargs)
         if self.elapsed_time: self.log.info(Fore.GREEN + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ===" + Fore.RESET)
-        
-    def log_score(self):
+
+    def log_score(self)->None:
         """
         Log the score of the current best solution.
         """
         self.model.log_score()
-        
-    def save_solution(self, dir_:str='./saved/', index:bool=True):
+
+    def save_solution(self, dir_:str='./saved/', index:bool=True)->None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             return
@@ -222,7 +226,7 @@ class OptimizationOrchestrator:
         self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
         self.log.info(f"Result files saved in {Fore.CYAN+str(dir_.resolve())+Fore.RESET} directory")
 
-    def build_config_from_solution(self, solution:dict, algorithm:str=None, *args, **kwargs) -> dict:
+    def build_config_from_solution(self, solution:dict, algorithm:str|None=None, *args, **kwargs) -> dict:
         """
         Build a configuration dictionary from a solution.
         
@@ -244,11 +248,11 @@ class OptimizationOrchestrator:
         config = self.build_config_from_solution(solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_heuristic_solution(self, solution):
+    def render_heuristic_solution(self, solution:dict):
         config = self.build_config_from_solution(solution, mode="heuristic")
         self._run_animation(config)
 
-    def _run_animation(self, config):
+    def _run_animation(self, config:dict):
         from GUI import PGAnime
         print(config)
         PGAnime(config).run()

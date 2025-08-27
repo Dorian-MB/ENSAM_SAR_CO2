@@ -518,7 +518,7 @@ class GAModel:
             self.log.error(Fore.RED + f"Simulation {cfg.get('eval_name', '')} failed. Please check the configuration and try again." + Fore.RESET)
             raise RuntimeError("Simulation failed during evaluation.")
         metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
-        normed_metrics = self.normalize(metrics)
+        normed_metrics = self.normalize(metrics, clip=clip)
         metrics["score"] = self.normalize.compute_score(normed_metrics)
         return metrics
 

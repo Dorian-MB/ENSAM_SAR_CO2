@@ -25,7 +25,7 @@ class Kpis:
     def get_non_numpy_sol(self, dic):
         return {k:float(v) for k, v in dic.items()}
     
-    # TODO: check if working
+    # TODO: look like not needed
     def safe_float_conversion(self, val, default=0.0):
         """
         Safely convert a value to float, handling pandas Series from MultiIndex DataFrames.

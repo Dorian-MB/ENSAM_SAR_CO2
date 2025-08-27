@@ -13,10 +13,10 @@ from eco2_normandy.logger import Logger
 metrics_keys = Normalizer().metrics_keys
 
 class SimCallback(CpSolverSolutionCallback):
-    def __init__(self, variables, 
+    def __init__(self, variables:list, 
                  base_config:dict, 
                  max_evals:int=50, 
-                 verbose:int=True, 
+                 verbose:int | bool=True, 
                  metrics_keys:list[str]=metrics_keys, 
                  boundaries=None,
                  logger=None, 
@@ -45,10 +45,10 @@ class SimCallback(CpSolverSolutionCallback):
         self.raw_metrics.index.name = "evals"
         self.solutions.index.name = "evals"
 
-    def get_config_from_solution(self, sol):
+    def get_config_from_solution(self, sol:dict)->dict:
         return self.cfg_builder.build(sol)
 
-    def run_simulation(self, cfg):
+    def run_simulation(self, cfg:dict):
         try :
             if self.verbose < 2: sim = Simulation(config=cfg, verbose=False)
             if self.verbose == 2: sim = Simulation(config=cfg, verbose=True)
@@ -84,7 +84,7 @@ class SimCallback(CpSolverSolutionCallback):
         front.add(metrics, self.evals)
         return True
 
-    def on_solution_callback(self):
+    def on_solution_callback(self)->None:
         self.solutions_tested += 1
 
         # 2.1 Limiter le nombre d'évaluations
@@ -127,21 +127,21 @@ class SimCallback(CpSolverSolutionCallback):
         self.solutions.loc[self.evals] = sol
         self.evals += 1
 
-    def set_results(self):
+    def set_results(self)->None:
         self._normalize_metrics()
         self._compute_raw_scores()
 
-    def calculate_performance_metrics(self, cfg, sim):
+    def calculate_performance_metrics(self, cfg:dict, sim)->pd.DataFrame:
         return calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
 
-    def _normalize_metrics(self):
+    def _normalize_metrics(self)->None:
         """ Normalize kpis metrics after run is done, to use same updated dynamic bounds on all solutions."""
         f = lambda row: self.dynamic_normalize_metrics(row)
         raw_data = self.raw_metrics.drop(["score"], axis=1, errors='ignore')
         norm_df = self.normalize(raw_data)
         self.norm_metrics = norm_df
         
-    def _compute_raw_scores(self):
+    def _compute_raw_scores(self)->None:
         """Retourne les scores bruts finaux sous forme de DataFrame."""
         if self.raw_metrics.empty:
             self.log.info(Fore.YELLOW + "Aucun score brut calculé, DataFrame vide." + Fore.RESET)
@@ -150,11 +150,11 @@ class SimCallback(CpSolverSolutionCallback):
             return
         self.raw_metrics["score"] = self.normalize.compute_score(self.norm_metrics)
     
-    def best_raw_score(self):
+    def best_raw_score(self)->pd.Series:
         """Retourne le meilleur score brut."""
         if "score" not in self.raw_metrics.columns:
             self.log.info(Fore.YELLOW + "Aucun score calculé." + Fore.RESET)
-            return None
+            raise ValueError("No scores computed.")
         return self.raw_metrics.loc[self.raw_metrics["score"].idxmin()]
 
         
