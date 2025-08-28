@@ -262,10 +262,16 @@ class OptimizationOrchestrator:
                 self.compare_solution_to_base_config()
             self.save_solution(dir_=f"./saved/{phase}", save_name=f"_{phase}")
             self.history[phase] = {
-                "score": self.model.best_score,
+                "scores": self.model.best_score,
                 "solution": self.model.best_solution,
             }
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
+
+    @property
+    def scores_per_phases(self):
+        if self.history == {}:
+            raise ValueError("No scores computed, empty history.")
+        return {phase:history["scores"]["score"] for phase, history in self.history.items()}
 
     def log_score(self) -> None:
         """
