@@ -129,9 +129,7 @@ class OptimizationOrchestrator:
             config = self.model.base_config
         return evaluate_single_scenario(config)
 
-    def plot_pareto(
-        self, scores: pd.DataFrame | None = None, figsize: tuple | list = (15, 15)
-    ) -> None:
+    def plot_pareto(self, scores: pd.DataFrame | None = None, figsize: tuple | list = (15, 15)) -> None:
         """Plot the pareto front of the optimization.
 
         Args:
@@ -181,9 +179,7 @@ class OptimizationOrchestrator:
                 fig.tight_layout()
         plt.show()
 
-    def cprofile(
-        self, init: bool = False, close: bool = False, result: bool = False, n: int = 10
-    ) -> None:
+    def cprofile(self, init: bool = False, close: bool = False, result: bool = False, n: int = 10) -> None:
         """init or close cProfile for the optimization process. Can also access the results.
 
         Args:
@@ -193,15 +189,11 @@ class OptimizationOrchestrator:
             n (int, optional): n first function calls. Defaults to 10.
 
         """
-        assert (
-            init + close + result <= 1
-        ), "Only one of init, close, or result can be True."
+        assert init + close + result <= 1, "Only one of init, close, or result can be True."
         if init:
             if not self.enable_cprofile:
                 return NoProfiler()
-            self.log.info(
-                Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET
-            )
+            self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
             self.profiler = cProfile.Profile()
             self.profiler.enable()
             return
@@ -218,11 +210,7 @@ class OptimizationOrchestrator:
             stats.sort_stats("cumulative")
             stats.print_stats(n)
         elif not self.enable_cprofile:
-            self.log.info(
-                Fore.YELLOW
-                + "=== Profiling not enabled, no results to show ==="
-                + Fore.RESET
-            )
+            self.log.info(Fore.YELLOW + "=== Profiling not enabled, no results to show ===" + Fore.RESET)
 
     def _start_model_solve(self, *args, **kwargs):
         self.cprofile(init=True)
@@ -245,9 +233,7 @@ class OptimizationOrchestrator:
         self._start_model_solve(*args, **kwargs)
         if self.elapsed_time:
             self.log.info(
-                Fore.GREEN
-                + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ==="
-                + Fore.RESET
+                Fore.GREEN + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ===" + Fore.RESET
             )
 
     def log_score(self) -> None:
@@ -266,19 +252,11 @@ class OptimizationOrchestrator:
             if isinstance(df, pd.DataFrame):
                 df.to_csv(dir_ / f"{name}.csv", index=index)
             else:
-                self.log.warning(
-                    Fore.YELLOW
-                    + f"Skipping saving {name} as it is not a DataFrame."
-                    + Fore.RESET
-                )
+                self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
         self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
-        self.log.info(
-            f"Result files saved in {Fore.CYAN+str(dir_.resolve())+Fore.RESET} directory"
-        )
+        self.log.info(f"Result files saved in {Fore.CYAN + str(dir_.resolve()) + Fore.RESET} directory")
 
-    def build_config_from_solution(
-        self, solution: dict, algorithm: str | None = None, *args, **kwargs
-    ) -> dict:
+    def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
         """
         Build a configuration dictionary from a solution.
 
@@ -294,9 +272,7 @@ class OptimizationOrchestrator:
         )
 
     def render_best_solution(self, *args, **kwargs):
-        config = self.build_config_from_solution(
-            self.model.best_solution, *args, **kwargs
-        )
+        config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
     def render_solution(self, solution, *args, **kwargs):
@@ -315,7 +291,6 @@ class OptimizationOrchestrator:
 
 
 if __name__ == "__main__":
-
     import argparse
     from optimizer.cp_model import CpModel
     from optimizer.ga_model import GAModel
@@ -353,9 +328,7 @@ if __name__ == "__main__":
     config["general"]["num_period"] = 2_000
 
     logger = Logger()
-    model = GAModel(
-        config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3"
-    )
+    model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
     # model = CpModel(config)
     optimizer = OptimizationOrchestrator(model=model, verbose=1, enable_cprofile=False)
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
@@ -363,9 +336,7 @@ if __name__ == "__main__":
     optimizer.log_score()
     optimizer.save_solution(dir_=str(saved_folder))
 
-    yesno = (
-        input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
-    )
+    yesno = input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
     if yesno == "y":
         optimizer.render_best_solution()
     else:

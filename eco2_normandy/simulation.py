@@ -47,16 +47,9 @@ class Simulation:
         # Initialisation de la station météo (exemple simplifié)
         weather_probability = self.config.get("weather_probability", {})
         values = {
-            "wind": [
-                int(k) for k, _ in self.config.get("allowed_speeds").get("wind").items()
-            ],
-            "wave": [
-                int(k) for k, _ in self.config.get("allowed_speeds").get("wave").items()
-            ],
-            "current": [
-                int(k)
-                for k, _ in self.config.get("allowed_speeds").get("current").items()
-            ],
+            "wind": [int(k) for k, _ in self.config.get("allowed_speeds").get("wind").items()],
+            "wave": [int(k) for k, _ in self.config.get("allowed_speeds").get("wave").items()],
+            "current": [int(k) for k, _ in self.config.get("allowed_speeds").get("current").items()],
         }
         self.weather_station = WeatherStation(
             values=values["wind"],
@@ -103,20 +96,14 @@ class Simulation:
 
     def run(self):
         if self.verbose:
-            self.logger.info(
-                Fore.CYAN + f"Starting simulation n°{Simulation.n_simu}..." + Fore.RESET
-            )
+            self.logger.info(Fore.CYAN + f"Starting simulation n°{Simulation.n_simu}..." + Fore.RESET)
         start_time = time.perf_counter()
         self.env.run(until=self.NUM_PERIOD)
         end_time = time.perf_counter()
         elapsed = end_time - start_time
         if self.verbose:
-            self.logger.info(
-                Fore.GREEN + "Simulation done, collecting data..." + Fore.RESET
-            )
-            self.logger.info(
-                Fore.GREEN + f"⏱️ Simulation time: {elapsed:.6f} seconds" + Fore.RESET
-            )
+            self.logger.info(Fore.GREEN + "Simulation done, collecting data..." + Fore.RESET)
+            self.logger.info(Fore.GREEN + f"⏱️ Simulation time: {elapsed:.6f} seconds" + Fore.RESET)
 
     def step(self):
         if self.env.peek() < self.NUM_PERIOD:
@@ -124,9 +111,7 @@ class Simulation:
 
     @property
     def result(self):
-        return data_to_dataframe(
-            storages=self.storages, factory=self.factory, ships=self.ships
-        )
+        return data_to_dataframe(storages=self.storages, factory=self.factory, ships=self.ships)
 
     def get_kpis_generator(self, live=True):
         if live:

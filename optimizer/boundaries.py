@@ -99,11 +99,7 @@ class ConfigBoundaries:
         self.log = logger or Logger()
         path = Path.cwd() / "saved" / boundaries_yaml
         if verbose > 0:
-            self.log.info(
-                Fore.YELLOW
-                + f"Loading boundaries from {Fore.CYAN+str(path.resolve())}"
-                + Fore.RESET
-            )
+            self.log.info(Fore.YELLOW + f"Loading boundaries from {Fore.CYAN + str(path.resolve())}" + Fore.RESET)
         if path.is_file():
             with open(path, "r") as f:
                 self._boundaries = yaml.safe_load(f)
@@ -129,9 +125,7 @@ class ConfigBoundaries:
             "min": int(self._boundaries["ships.speed_max"]["min"]),
             "max": int(self._boundaries["ships.speed_max"]["max"]),
         }
-        self.max_num_storages = int(
-            self._boundaries["storages.num_storages"]["constant"] + 1
-        )
+        self.max_num_storages = int(self._boundaries["storages.num_storages"]["constant"] + 1)
         self.storage_caps = {
             "max": int(self._boundaries["storages.capacity_max"]["max"]),
             "min": int(self._boundaries["storages.capacity_max"]["min"]),
@@ -182,9 +176,7 @@ class KpisBoundaries:
         if self.path.exists() and self.path.is_file():
             if verbose > 0:
                 self.log.info(
-                    Fore.GREEN
-                    + f"Loading KPIs boundaries from {Fore.CYAN+str(self.path.resolve())}"
-                    + Fore.RESET
+                    Fore.GREEN + f"Loading KPIs boundaries from {Fore.CYAN + str(self.path.resolve())}" + Fore.RESET
                 )
             self.kpis_boundaries = pd.read_csv(str(self.path), index_col="bounds").T
         else:
@@ -203,9 +195,7 @@ class KpisBoundaries:
         scenarios = get_all_scenarios("scenarios/")
         self._kpis_list = []
         for path, config in scenarios:
-            config["general"][
-                "num_period"
-            ] = 2000  # Set to 2000 for reproducibility and stable kpis results
+            config["general"]["num_period"] = 2000  # Set to 2000 for reproducibility and stable kpis results
             sim = Simulation(config, verbose=False)
             sim.run()
             self._kpis_list.append(calculate_performance_metrics(config, sim))
@@ -217,9 +207,7 @@ class KpisBoundaries:
         bounds = compute_dynamic_bounds(self._kpis_list)
         bounds_df = pd.DataFrame(bounds, index=["min", "max"])
         bounds_df.index.name = "bounds"
-        bounds_df.underfill_rate = bounds_df.underfill_rate.clip(
-            lower=0, upper=1
-        )  # Clip underfilling rate to [0, 1]
+        bounds_df.underfill_rate = bounds_df.underfill_rate.clip(lower=0, upper=1)  # Clip underfilling rate to [0, 1]
         bounds_df.to_csv(self.path, index=True)
         return bounds_df
 

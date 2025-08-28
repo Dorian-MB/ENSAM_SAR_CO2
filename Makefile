@@ -1,4 +1,8 @@
 
+install:
+	poetry install
+
+
 tree:
 	git ls-files | tree --fromfile
 
@@ -12,3 +16,6 @@ st:
 
 black:
 	poetry run black .
+
+ruff:
+	poetry run ruff format .

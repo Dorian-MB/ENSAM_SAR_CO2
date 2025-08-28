@@ -14,11 +14,7 @@ from KPIS import Kpis
 
 
 def flatten(lst: list) -> list:
-    return [
-        item
-        for elem in lst
-        for item in (flatten(elem) if isinstance(elem, list) else [elem])
-    ]
+    return [item for elem in lst for item in (flatten(elem) if isinstance(elem, list) else [elem])]
 
 
 ## Pareto ####################################################################
@@ -39,18 +35,12 @@ class ParetoFront:
         if isinstance(metrics, pd.Series):
             metrics = metrics.to_dict()
         if self.metrics_keys:
-            assert all(
-                k in self.metrics_keys for k in metrics
-            ), "All metrics must be in the defined keys."
+            assert all(k in self.metrics_keys for k in metrics), "All metrics must be in the defined keys."
         for entry, n in self.front:
-            if dominates(
-                entry, metrics
-            ):  # Si entry domine la nouvelle → on ne l'ajoute pas
+            if dominates(entry, metrics):  # Si entry domine la nouvelle → on ne l'ajoute pas
                 return  # on garde les meme solutions -> on quitte
             if not dominates(metrics, entry):
-                non_dom.append(
-                    (entry, n)
-                )  # ni l'un ni l'autre ne domine → on garde entry
+                non_dom.append((entry, n))  # ni l'un ni l'autre ne domine → on garde entry
             # si entry est dominer par la nouvelle solution, on ne la garde pas
         # on n'a pas quitté → la nouvelle solution est non dominée
         non_dom.append((metrics, n_evals))
@@ -111,10 +101,8 @@ def surrogate_metrics(sol, cfg):
     waiting = 0
     cumulative_travel_time = 0
     for i in range(n_ships):
-        dest = sol[f"fixed{i+1}_storage_destination"]
-        distance = cfg["general"]["distances"]["Le Havre"][
-            map_ship_fixed_storage_destination[dest]
-        ]
+        dest = sol[f"fixed{i + 1}_storage_destination"]
+        distance = cfg["general"]["distances"]["Le Havre"][map_ship_fixed_storage_destination[dest]]
         travel_time = distance / speed
         cumulative_travel_time += travel_time
         voyages = total_period // travel_time
@@ -125,10 +113,8 @@ def surrogate_metrics(sol, cfg):
 
     # Approximate waiting proxy
     for i in range(n_ships):
-        dest = sol[f"fixed{i+1}_storage_destination"]
-        distance = cfg["general"]["distances"]["Le Havre"][
-            map_ship_fixed_storage_destination[dest]
-        ]
+        dest = sol[f"fixed{i + 1}_storage_destination"]
+        distance = cfg["general"]["distances"]["Le Havre"][map_ship_fixed_storage_destination[dest]]
         travel_time = distance / speed
         voyages = total_period // travel_time
         transported = voyages * sol["ship_capacity"]
@@ -150,9 +136,7 @@ def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
     cost = functional_cost["Combined Total Cost"]
     wasted_production_over_time = kpis.wasted_production()
     waiting_time = kpis.get_total_waiting_time()
-    factory_filling_rate = (
-        kpis.factory_filling_rate()
-    )  # want to maximize, so we will use -factory_filling_rate
+    factory_filling_rate = kpis.factory_filling_rate()  # want to maximize, so we will use -factory_filling_rate
     metrics = {
         k: v
         for k, v in zip(
@@ -252,9 +236,7 @@ class ConfigBuilderFromSolution:
         self.map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
         self.boundaries = boundaries
 
-    def get_config_from_solution(
-        self, sol: dict, algorithm: str, *args, **kwargs
-    ) -> dict:
+    def get_config_from_solution(self, sol: dict, algorithm: str, *args, **kwargs) -> dict:
         """
         Build a simulation config from a solution dict.
         """
@@ -289,17 +271,13 @@ class ConfigBuilderFromSolution:
     def build(self, sol: dict) -> dict:
         cfg = deepcopy(self.base_config)
         cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
-        cfg["factory"]["capacity_max"] = int(
-            sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks
-        )
+        cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)
         X = (self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"])
         Y = (
             self.boundaries.factory_cost_per_tank["min"],
             self.boundaries.factory_cost_per_tank["max"],
         )
-        cfg["factory"]["cost_per_tank"] = self.predict_cost(
-            sol["number_of_tanks"], X, Y
-        )
+        cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = ""
@@ -316,20 +294,14 @@ class ConfigBuilderFromSolution:
         cfg["ships"].clear()
         for i in range(sol["num_ship"]):
             cfg["ships"].append(deepcopy(ship))
-            cfg["ships"][i]["name"] = f"Ship {i+1}"
-            cfg["ships"][i]["init"]["destination"] = self.map_ship_initial_destination[
-                sol[f"init{i+1}_destination"]
+            cfg["ships"][i]["name"] = f"Ship {i + 1}"
+            cfg["ships"][i]["init"]["destination"] = self.map_ship_initial_destination[sol[f"init{i + 1}_destination"]]
+            cfg["ships"][i]["fixed_storage_destination"] = self.map_ship_fixed_storage_destination[
+                sol[f"fixed{i + 1}_storage_destination"]
             ]
-            cfg["ships"][i]["fixed_storage_destination"] = (
-                self.map_ship_fixed_storage_destination[
-                    sol[f"fixed{i+1}_storage_destination"]
-                ]
-            )
             cfg["ships"][i]["capacity_max"] = sol["ship_capacity"]
             cfg["ships"][i]["speed_max"] = sol["ship_speed"]
-            cfg["ships"][i]["ship_buying_cost"] = self.predict_cost(
-                sol["ship_capacity"], X, Y
-            )
+            cfg["ships"][i]["ship_buying_cost"] = self.predict_cost(sol["ship_capacity"], X, Y)
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
 

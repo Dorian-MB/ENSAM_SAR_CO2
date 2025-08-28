@@ -74,7 +74,7 @@ class Factory(Port):
         number_of_tanks,
         cost_per_tank,
         logger=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             num_period_per_hours,
@@ -140,9 +140,7 @@ class Factory(Port):
         production_rate = 0
         for i, source in enumerate(self.sources):
             if self._maintenance_counters[i] == 0:
-                self._maintenance_flags[i] = (
-                    random.random() < source["maintenance_rate"]
-                )
+                self._maintenance_flags[i] = random.random() < source["maintenance_rate"]
 
             # Si aucune maintenance n'est active durant l'heure, on ajoute la production
             if not self._maintenance_flags[i]:
@@ -152,9 +150,7 @@ class Factory(Port):
                 )
 
             # Passage à la période suivante dans l'heure pour cette source
-            self._maintenance_counters[i] = (
-                self._maintenance_counters[i] + 1
-            ) % self.num_period_per_hours
+            self._maintenance_counters[i] = (self._maintenance_counters[i] + 1) % self.num_period_per_hours
 
         return production_rate
 
@@ -167,9 +163,7 @@ class Factory(Port):
             # if random.random() < self.unscheduled_maintenance_prob:
             #     maintenance_factor = self.maintenance_impact_unscheduled
             # factor = 1 - abs(maintenance_factor)
-            production = (
-                self._generate_production()
-            )  # * factor # pour l'instant non pris en compte
+            production = self._generate_production()  # * factor # pour l'instant non pris en compte
             available = self._get_capacity_left()
             to_add = min(production, available)
             if to_add:
@@ -179,9 +173,7 @@ class Factory(Port):
 
     def pump(self, amount):
         """Transfert de CO2 depuis l'usine vers un navire."""
-        pump_rate = (
-            self.pump_in_maintenance_rate if self.maintenance else self.pump_rate
-        )
+        pump_rate = self.pump_in_maintenance_rate if self.maintenance else self.pump_rate
         transferred = min(pump_rate, amount, self.container.level)
         if transferred:
             yield self.container.get(transferred)

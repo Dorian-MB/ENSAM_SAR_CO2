@@ -83,8 +83,4 @@ if __name__ == "__main__":
     print("\nAbsolute normalization:")
     display(pd.DataFrame(normed_absolute).astype(float).round(3))
     print("Difference between dynamic and absolute normalization:\n\n")
-    display(
-        (pd.DataFrame(normed_dynamic) - pd.DataFrame(normed_absolute))
-        .astype(float)
-        .round(3)
-    )
+    display((pd.DataFrame(normed_dynamic) - pd.DataFrame(normed_absolute)).astype(float).round(3))

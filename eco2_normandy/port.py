@@ -25,7 +25,7 @@ class Port(ABC):
         lock_waiting_time: int = 0,
         initial_capacity: int = 0,
         logger=None,
-        **kwargs
+        **kwargs,
     ):
         self.env = env
         self.name = name
@@ -40,9 +40,7 @@ class Port(ABC):
         self.number_of_tanks = number_of_tanks
         self.cost_per_tank = cost_per_tank
         self.pump_rate: int = pump_rate * num_period_per_hours
-        self.pump_in_maintenance_rate: int = (
-            pump_in_maintenance_rate * num_period_per_hours
-        )
+        self.pump_in_maintenance_rate: int = pump_in_maintenance_rate * num_period_per_hours
         self.lock_waiting_time: int = lock_waiting_time
 
         # Variables d'état

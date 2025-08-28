@@ -46,20 +46,16 @@ div[class*="ships"]:hover {
 # Streamlit App
 st.title("Simple Simulation Input and KPI Graphs Generator")
 
-st.session_state.simulation_name = st.text_input('Nom de la simulation', value="simulation 1")
+st.session_state.simulation_name = st.text_input("Nom de la simulation", value="simulation 1")
 
 with st.expander("General Inputs"):
     general = {
-        "num_period_per_hours": st.number_input(
-            "Number of Periods per Hour", value=1.0
-        ),
+        "num_period_per_hours": st.number_input("Number of Periods per Hour", value=1.0),
         "num_ships": st.number_input("Number of Ships", value=1),
         "num_period": st.number_input("Number of Periods", value=2000),
         "distances": {
             "Le Havre": {
-                "Rotterdam": st.number_input(
-                    "Distance: Le Havre to Rotterdam", value=263.0
-                ),
+                "Rotterdam": st.number_input("Distance: Le Havre to Rotterdam", value=263.0),
                 "Bergen": st.number_input("Distance: Le Havre to Bergen", value=739.0),
             }
         },
@@ -67,23 +63,24 @@ with st.expander("General Inputs"):
 
 
 weather_probability = {
-        "wind": 0.1,
-        "waves": 0.1,
-        "current": 0.1,
-    }
+    "wind": 0.1,
+    "waves": 0.1,
+    "current": 0.1,
+}
 
 kpis = {
-        "fuel_price_per_ton": 520,
-        "delay_penalty_per_hour": 200,
-        "co2_release_cost_per_ton": 0.1,
-        "storage_cost_per_m3": 30,
-    }
+    "fuel_price_per_ton": 520,
+    "delay_penalty_per_hour": 200,
+    "co2_release_cost_per_ton": 0.1,
+    "storage_cost_per_m3": 30,
+}
 
 allowed_speeds = {
     "wind": {"6": 12, "10": 10, "20": 0},
-    "wave":{"6": 12, "10": 10, "20": 0},
-    "current": {"6": 12, "10": 10, "20": 0}
+    "wave": {"6": 12, "10": 10, "20": 0},
+    "current": {"6": 12, "10": 10, "20": 0},
 }
+
 
 # Manage dynamic items
 def manage_dynamic_section(section_name, section_state_key, default_item):
@@ -99,39 +96,26 @@ def manage_dynamic_section(section_name, section_state_key, default_item):
                 with col1:
                     for key, value in item.items():
                         if isinstance(value, (float, int)):  # Handle numeric inputs
-                            st.session_state[section_state_key][idx][key] = (
-                                st.number_input(
-                                    f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
-                                    value=value,
-                                )
+                            st.session_state[section_state_key][idx][key] = st.number_input(
+                                f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
+                                value=value,
                             )
                         elif isinstance(value, str):  # Handle string inputs
-                            st.session_state[section_state_key][idx][key] = (
-                                st.text_input(
-                                    f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
-                                    value=value,
-                                )
+                            st.session_state[section_state_key][idx][key] = st.text_input(
+                                f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
+                                value=value,
                             )
                         elif isinstance(value, dict):  # Handle nested dictionaries
-
                             with st.container():
                                 st.subheader(f"{key.capitalize()} Details")
                                 for sub_key, sub_value in value.items():
-                                    if isinstance(
-                                        sub_value, (float, int)
-                                    ):  # Numeric sub-values
-                                        st.session_state[section_state_key][idx][key][
-                                            sub_key
-                                        ] = st.number_input(
+                                    if isinstance(sub_value, (float, int)):  # Numeric sub-values
+                                        st.session_state[section_state_key][idx][key][sub_key] = st.number_input(
                                             f"{section_name[:-1]} {idx + 1} - {key.capitalize()} - {sub_key.capitalize()}",
                                             value=sub_value,
                                         )
-                                    elif isinstance(
-                                        sub_value, str
-                                    ):  # String sub-values
-                                        st.session_state[section_state_key][idx][key][
-                                            sub_key
-                                        ] = st.text_input(
+                                    elif isinstance(sub_value, str):  # String sub-values
+                                        st.session_state[section_state_key][idx][key][sub_key] = st.text_input(
                                             f"{section_name[:-1]} {idx + 1} - {key.capitalize()} - {sub_key.capitalize()}",
                                             value=sub_value,
                                         )
@@ -176,11 +160,13 @@ manage_dynamic_section(
         "transit_time_from_dock": 5.3,
         "storage_cost_per_m3": 35,
         "initial_capacity": 1,
-        "sources": [{
-            "name": "source 1",
-            "annual_production_capacity": 600000,
-            "maintenance_rate": 0.1,
-        }]
+        "sources": [
+            {
+                "name": "source 1",
+                "annual_production_capacity": 600000,
+                "maintenance_rate": 0.1,
+            }
+        ],
     },
 )
 
@@ -261,26 +247,33 @@ if st.button("Simulate", disabled=st.session_state.get("simulation_state", None)
         st.session_state.simulation_state = "running"
         st.rerun()
 
+
 def launch_pygame_animation(config):
     return PGAnime(config).run()
 
-if st.button("PyGame Animation 🚀", disabled=st.session_state.get("pygame_running", "") == "running"):
+
+if st.button(
+    "PyGame Animation 🚀",
+    disabled=st.session_state.get("pygame_running", "") == "running",
+):
     st.session_state.pygame_running = "running"
-    process = multiprocessing.Process(target=launch_pygame_animation,
-                                      args=(simulation_variables,))
+    process = multiprocessing.Process(target=launch_pygame_animation, args=(simulation_variables,))
     process.start()
     st.success("Animation lancer !")
     st.session_state.pygame_process = process
     st.rerun()
 
-if st.button("Arrêter l'animation 🛑", disabled=st.session_state.get("pygame_running", "") != "running"):
+if st.button(
+    "Arrêter l'animation 🛑",
+    disabled=st.session_state.get("pygame_running", "") != "running",
+):
     if "pygame_process" in st.session_state:
         st.session_state.pygame_process.terminate()
         del st.session_state["pygame_process"]
         st.session_state.pygame_running = None
         st.success("Animation arrêtée !")
         st.rerun()
-        
+
 if st.session_state.get("pygame_running") == "running":
     proc = st.session_state.get("pygame_process")
     # If the process object exists but is no longer alive…
@@ -319,13 +312,8 @@ if st.session_state.get("simulation_state", None) == "running":
 
 
 # Fin de la simultion
-if (
-    len(st.session_state.get("plots", [])) > 0
-    and st.session_state.get("simulation_state", None) == "done"
-):
-    st.success(
-        f"Simulation completed in {round(st.session_state.done_at - st.session_state.started_at)} seconds."
-    )
+if len(st.session_state.get("plots", [])) > 0 and st.session_state.get("simulation_state", None) == "done":
+    st.success(f"Simulation completed in {round(st.session_state.done_at - st.session_state.started_at)} seconds.")
     # Create two columns
     col1, col2 = st.columns(2)
     plots = st.session_state.plots
@@ -338,4 +326,3 @@ if (
         else:
             with col2:
                 st.plotly_chart(plot)
-
