@@ -50,6 +50,11 @@ class CpModel(cp_model.CpModel):
         self.max_time_in_seconds = None
         self.cfg_builder = ConfigBuilderFromSolution(config, self.boundaries)
 
+    def reset(self, base_config: dict):
+        self.istrain = False
+        self.base_config = base_config
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
+
     def _get_alogorithm(self, algorithm):
         if algorithm == "SearchForAllSolutions":
             return self.SearchForAllSolutions
@@ -353,27 +358,21 @@ class CpModel(cp_model.CpModel):
         return self.solutions.loc[self.best_score.name]
 
     @property
-    def dynamic_bounds(self) -> pd.DataFrame:
-        bounds = pd.DataFrame(self.callback.dynamic_bounds, index=["min", "max"])
-        bounds.index.name = "bounds"
-        return bounds
-
-    @property
     def pareto_front(self) -> pd.DataFrame:
         return pd.DataFrame(self.callback.pareto_front.get_front()).T
 
     def data_to_saved(self) -> dict:
+        name = "CP"
         return {
-            "solutions": self.solutions,
-            "scores": self.scores,
-            "dynamic_bounds": self.dynamic_bounds,
-            "pareto_front": self.pareto_front,
+            f"solutions_{name}": self.solutions,
+            f"scores_{name}": self.scores,
+            f"pareto_{name}": self.pareto_front,
         }
 
     def evaluate(self, cfg: dict, clip: bool = True) -> pd.DataFrame:
         """
         Evaluate the configuration.
-        This methode is meant to be used after the model has been trained and the callback normalization is set.
+        This methode is meant to be used after the model has been trained.
         """
         if self.istrain is False:
             self.log.error(

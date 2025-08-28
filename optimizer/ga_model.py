@@ -335,14 +335,22 @@ class GAModel:
         self.manager = Manager() if parallelization else None
 
         self.res = None
-        self.algoritm = None
         self.solutions = []
         self.scores = []
         self.istrain = False
 
-        self.boundaries = ConfigBoundaries(logger=self.log)
+        self.boundaries = ConfigBoundaries(logger=self.log, verbose=0)
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
         self.normalize = Normalizer()
+
+    def reset(self, base_config: dict):
+        self.res = None
+        self.solutions = []
+        self.scores = []
+        self.istrain = False
+        self.base_config = base_config
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
+        self.manager = Manager() if self.parallelization else None
 
     def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 500) -> list[tuple[int, int]]:
         """Calcule les tailles de population valides pour NSGA3"""
@@ -422,10 +430,6 @@ class GAModel:
 
         sampling = MixedVariableSampling(self.problem)
         self.algorithm = self._get_algorithm(sampling)
-
-        # Create mixed variable sampling with problem context
-        # Update algorithm with proper sampling
-        # self.algorithm.sampling = sampling
 
         self.res = self._minimize(self.algorithm, pool)
         if self.parallelization:
@@ -528,10 +532,11 @@ class GAModel:
         if self.istrain is False:
             self.log.warning(Fore.RED + "No solutions or results available. Call solve() first." + Fore.RESET)
             return {}
+        name = f"{self.algorithm_name}"
         return {
-            "solutions_ga": self.solutions,
-            "scores_ga": self.scores,
-            "pareto_ga": self.pareto_front,
+            f"solutions_{name}": self.solutions,
+            f"scores_{name}": self.scores,
+            f"pareto_{name}": self.pareto_front,
         }
 
     def evaluate(self, cfg: dict, clip: bool = True) -> pd.DataFrame:
