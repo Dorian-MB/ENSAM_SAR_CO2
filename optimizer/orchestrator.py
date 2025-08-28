@@ -14,7 +14,6 @@ from typing import Generator
 from eco2_normandy.logger import Logger
 from optimizer.utils import (
     get_all_scenarios,
-    ConfigBuilderFromSolution,
     NoProfiler,
     evaluate_single_scenario,
 )
