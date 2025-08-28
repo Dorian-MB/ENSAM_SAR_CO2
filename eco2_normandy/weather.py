@@ -4,9 +4,11 @@ from random import uniform, choice
 
 from pathlib import Path
 import sys
+
 sys.path.append(str(Path.cwd()))
 
 from eco2_normandy.logger import Logger
+
 
 # --- Classe Weather ---
 @dataclass
@@ -14,11 +16,13 @@ class CurrentData:
     angle: int
     speed: int
 
+
 @dataclass
 class WeatherReport(object):
     wind: int
     wave: int
     current: CurrentData
+
 
 class WeatherStation(object):
 

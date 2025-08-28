@@ -11,18 +11,28 @@ import pandas as pd
 from colorama import Fore
 
 from eco2_normandy.logger import Logger
-from optimizer.utils import get_all_scenarios, ConfigBuilderFromSolution, NoProfiler, evaluate_single_scenario
+from optimizer.utils import (
+    get_all_scenarios,
+    ConfigBuilderFromSolution,
+    NoProfiler,
+    evaluate_single_scenario,
+)
 from optimizer.compare_scenarios import print_diffs
 from optimizer.boundaries import ConfigBoundaries
+
 
 class OptimizationOrchestrator:
     """
     Base class for optimization algorithms.
-    This class provides a framework for implementing various optimization strategies.
     """
 
-    def __init__(self, model, logger:Logger|None=None, verbose:int|bool=1,
-                enable_cprofile:bool=False)->None:
+    def __init__(
+        self,
+        model,
+        logger: Logger | None = None,
+        verbose: int | bool = 1,
+        enable_cprofile: bool = False,
+    ) -> None:
         self.log = logger or Logger()
         self.model = model
         self.verbose = verbose
@@ -32,28 +42,36 @@ class OptimizationOrchestrator:
         self.cfg_builder = ConfigBuilderFromSolution(model.base_config, self.boundaries)
         self.full_results = None
 
-    def set_model_callback(self, *args, **kwargs)->None:
+    def set_model_callback(self, *args, **kwargs) -> None:
         """
         Set the callback for the optimizer.
         """
         self.model._set_callback(*args, **kwargs)
-    
-    def set_base_config(self, base_config:dict)->None:
+
+    def set_base_config(self, base_config: dict) -> None:
         """
         Set the base configuration for the optimizer.
         """
         self.model.base_config = base_config
-        self.model.callbacks.base_config = base_config # todo : erreur si GaModel
+        if hasattr(self.model, "callbacks"):
+            self.model.callbacks.base_config = base_config
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
 
-    def compare_solution_to_base_config(self, solution:dict)->None:
+    def compare_solution_to_base_config(self, solution: dict = None) -> None:
+        if solution is None:
+            solution = self.model.best_solution
         sol_cfg = self.cfg_builder.build(solution)
-        print_diffs(sol_cfg, self.model.base_config) # todo: ajouter un print pour mieux differencier les 2 scenarios
-    
-    def evaluate_all_scenarios(self, num_period:int=2000, 
-                        path:str="scenarios/", 
-                        scenario_filter:str="phase",
-                )->pd.DataFrame:
+        base_config = self.model.base_config
+        sol_cfg["name"] = "model_solution"
+        base_config["name"] = "base_config"
+        print_diffs(sol_cfg, base_config)
+
+    def evaluate_all_scenarios(
+        self,
+        num_period: int = 2000,
+        path: str = "scenarios/",
+        scenario_filter: str = "phase",
+    ) -> pd.DataFrame:
         """Evalue all scenarios in the given path.
 
         Args:
@@ -73,18 +91,20 @@ class OptimizationOrchestrator:
         for s_path, scenario in get_all_scenarios(path):
             if scenario_filter and scenario_filter not in str(s_path.parent):
                 continue
-            scenario['eval_name'] = s_path.name
+            scenario["eval_name"] = s_path.name
             scenario["general"]["num_period"] = num_period
             r = self.evaluate(scenario)
             r.index = pd.Index([s_path.name])
             results.append(r)
         return pd.concat(results, axis=0).sort_index()
 
-    def evaluate(self, scenario:dict)->pd.DataFrame:
+    def evaluate(self, scenario: dict) -> pd.DataFrame:
         return self.model.evaluate(scenario)
 
     @staticmethod
-    def evaluate_defaults_scenarios(num_period:int=2000, path:str="scenarios", scenario_filter:str="phase")->pd.DataFrame:
+    def evaluate_defaults_scenarios(
+        num_period: int = 2000, path: str = "scenarios", scenario_filter: str = "phase"
+    ) -> pd.DataFrame:
         """Evaluate the default scenario.
 
         Args:
@@ -97,17 +117,21 @@ class OptimizationOrchestrator:
         for s_path, scenario in get_all_scenarios(path):
             if scenario_filter and scenario_filter not in str(s_path.parent):
                 continue
-            scenario['eval_name'] = s_path.name
+            scenario["eval_name"] = s_path.name
             scenario["general"]["num_period"] = num_period
             r = evaluate_single_scenario(scenario)
             r.index = pd.Index([s_path.name])
             results.append(r)
         return pd.concat(results).sort_index()
 
-    def evaluate_base_scenario(self):
-        return evaluate_single_scenario(self.model.base_config)
+    def evaluate_base_scenario(self, config: dict | None = None) -> pd.DataFrame:
+        if config is None:
+            config = self.model.base_config
+        return evaluate_single_scenario(config)
 
-    def plot_pareto(self, scores:pd.DataFrame|None=None, figsize:tuple|list=(15, 15))->None:
+    def plot_pareto(
+        self, scores: pd.DataFrame | None = None, figsize: tuple | list = (15, 15)
+    ) -> None:
         """Plot the pareto front of the optimization.
 
         Args:
@@ -123,36 +147,44 @@ class OptimizationOrchestrator:
         plot.add(model.problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
         plot.add(model.res.F, facecolor="none", edgecolor="red")
         plot.show()
-        
+
         """
         import matplotlib.pyplot as plt
+
         scores = scores if scores is not None else self.model.scores
 
-        cost = scores['cost']
-        wasted_production = scores['wasted_production_over_time']
-        waiting_time = scores['waiting_time']
-        underfill_rate = scores['underfill_rate']
+        cost = scores["cost"]
+        wasted_production = scores["wasted_production_over_time"]
+        waiting_time = scores["waiting_time"]
+        underfill_rate = scores["underfill_rate"]
 
         fig, axs = plt.subplots(4, 3, figsize=figsize)
         axs = axs.flatten()
 
-        metrics_name = ['cost', 'wasted_production_over_time', 'waiting_time', 'underfill_rate']
+        metrics_name = [
+            "cost",
+            "wasted_production_over_time",
+            "waiting_time",
+            "underfill_rate",
+        ]
         metrics_values = [cost, wasted_production, waiting_time, underfill_rate]
         for i, name in enumerate(metrics_name):
             ligne_i = 3 * i
-            other_metrics = metrics_values[:i] + metrics_values[i+1:]
-            other_metrics_name = metrics_name[:i] + metrics_name[i+1:]
+            other_metrics = metrics_values[:i] + metrics_values[i + 1 :]
+            other_metrics_name = metrics_name[:i] + metrics_name[i + 1 :]
             axs[ligne_i].scatter(metrics_values[i], other_metrics[0])
-            axs[ligne_i+1].scatter(metrics_values[i], other_metrics[1])
-            axs[ligne_i+2].scatter(metrics_values[i], other_metrics[2])
-            for j, ax in enumerate(axs[ligne_i:ligne_i+3]):
+            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1])
+            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2])
+            for j, ax in enumerate(axs[ligne_i : ligne_i + 3]):
                 ax.set_xlabel(name)
                 ax.set_ylabel(other_metrics_name[j])
                 fig.tight_layout()
         plt.show()
-            
-    def cprofile(self, init:bool=False, close:bool=False, result:bool=False, n:int=10)->None:
-        """ init or close cProfile for the optimization process. Can also access the results.
+
+    def cprofile(
+        self, init: bool = False, close: bool = False, result: bool = False, n: int = 10
+    ) -> None:
+        """init or close cProfile for the optimization process. Can also access the results.
 
         Args:
             init (bool, optional): init cprofiler . Defaults to False.
@@ -161,58 +193,70 @@ class OptimizationOrchestrator:
             n (int, optional): n first function calls. Defaults to 10.
 
         """
-        assert init + close + result <= 1, "Only one of init, close, or result can be True."
+        assert (
+            init + close + result <= 1
+        ), "Only one of init, close, or result can be True."
         if init:
             if not self.enable_cprofile:
                 return NoProfiler()
-            self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
+            self.log.info(
+                Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET
+            )
             self.profiler = cProfile.Profile()
             self.profiler.enable()
-            return 
-                
+            return
+
         if close and self.enable_cprofile:
             self.profiler.disable()
             self.log.info(Fore.YELLOW + "=== Profiling disabled ===" + Fore.RESET)
             return
         elif not self.enable_cprofile:
             return
-        
-        
+
         if result and self.enable_cprofile:
             stats = pstats.Stats(self.profiler, stream=sys.stdout)
-            stats.sort_stats('cumulative')
+            stats.sort_stats("cumulative")
             stats.print_stats(n)
         elif not self.enable_cprofile:
-            self.log.info(Fore.YELLOW + "=== Profiling not enabled, no results to show ===" + Fore.RESET)
+            self.log.info(
+                Fore.YELLOW
+                + "=== Profiling not enabled, no results to show ==="
+                + Fore.RESET
+            )
 
     def _start_model_solve(self, *args, **kwargs):
         self.cprofile(init=True)
         try:
             t = time.perf_counter()
             self.model.solve(*args, **kwargs)
-            self.elapsed_time = time.perf_counter() - t 
+            self.elapsed_time = time.perf_counter() - t
             time.sleep(0.5)  # Allow time for the solver to finish logging
         except Exception as e:
             raise e
         finally:
             self.cprofile(close=True)
 
-    def optimize(self, *args, **kwargs)->None:
+    def optimize(self, *args, **kwargs) -> None:
         """
         Run the optimization algorithm.
         """
-        if kwargs.get('verbose') is None:
-            kwargs['verbose'] = self.verbose
+        if kwargs.get("verbose") is None:
+            kwargs["verbose"] = self.verbose
         self._start_model_solve(*args, **kwargs)
-        if self.elapsed_time: self.log.info(Fore.GREEN + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ===" + Fore.RESET)
+        if self.elapsed_time:
+            self.log.info(
+                Fore.GREEN
+                + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ==="
+                + Fore.RESET
+            )
 
-    def log_score(self)->None:
+    def log_score(self) -> None:
         """
         Log the score of the current best solution.
         """
         self.model.log_score()
 
-    def save_solution(self, dir_:str='./saved/', index:bool=True)->None:
+    def save_solution(self, dir_: str = "./saved/", index: bool = True) -> None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             return
@@ -222,67 +266,84 @@ class OptimizationOrchestrator:
             if isinstance(df, pd.DataFrame):
                 df.to_csv(dir_ / f"{name}.csv", index=index)
             else:
-                self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
+                self.log.warning(
+                    Fore.YELLOW
+                    + f"Skipping saving {name} as it is not a DataFrame."
+                    + Fore.RESET
+                )
         self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
-        self.log.info(f"Result files saved in {Fore.CYAN+str(dir_.resolve())+Fore.RESET} directory")
+        self.log.info(
+            f"Result files saved in {Fore.CYAN+str(dir_.resolve())+Fore.RESET} directory"
+        )
 
-    def build_config_from_solution(self, solution:dict, algorithm:str|None=None, *args, **kwargs) -> dict:
+    def build_config_from_solution(
+        self, solution: dict, algorithm: str | None = None, *args, **kwargs
+    ) -> dict:
         """
         Build a configuration dictionary from a solution.
-        
+
         Args:
             solution (dict): The solution dictionary to build the configuration from.
             from_model (bool): If True, use the model's method to get the configuration.
-        
+
         Returns:
             dict: The built configuration dictionary.
         """
-        return self.cfg_builder.get_config_from_solution(solution, algorithm=algorithm or self.model.algorithm_name,
-                                                        *args, **kwargs)
+        return self.cfg_builder.get_config_from_solution(
+            solution, algorithm=algorithm or self.model.algorithm_name, *args, **kwargs
+        )
 
     def render_best_solution(self, *args, **kwargs):
-        config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
+        config = self.build_config_from_solution(
+            self.model.best_solution, *args, **kwargs
+        )
         self._run_animation(config)
 
     def render_solution(self, solution, *args, **kwargs):
         config = self.build_config_from_solution(solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_heuristic_solution(self, solution:dict):
+    def render_heuristic_solution(self, solution: dict):
         config = self.build_config_from_solution(solution, mode="heuristic")
         self._run_animation(config)
 
-    def _run_animation(self, config:dict):
+    def _run_animation(self, config: dict):
         from GUI import PGAnime
+
         print(config)
         PGAnime(config).run()
-        
+
+
 if __name__ == "__main__":
 
     import argparse
     from optimizer.cp_model import CpModel
     from optimizer.ga_model import GAModel
     from eco2_normandy.tools import get_simlulation_variable
+
     parser = argparse.ArgumentParser(
         description="Solve the scheduling model with a configurable number of CP-SAT iterations."
     )
     parser.add_argument(
-        "-t", "--max_time",
+        "-t",
+        "--max_time",
         type=int,
         default=60 * 60,  # default 1 hour
-        help="Maximum time in seconds for the CP-SAT solver to run."
+        help="Maximum time in seconds for the CP-SAT solver to run.",
     )
     parser.add_argument(
-        "-s", "--saved-folder",
+        "-s",
+        "--saved-folder",
         type=str,
         default="",
-        help="Folder to save the results and solutions, within './saved/' folder."
+        help="Folder to save the results and solutions, within './saved/' folder.",
     )
     parser.add_argument(
-        "-m", "--max-eval",
+        "-m",
+        "--max-eval",
         type=int,
         default=5,
-        help="Maximum number of evaluations (with valid result) for the CP-SAT callback"
+        help="Maximum number of evaluations (with valid result) for the CP-SAT callback",
     )
     args = parser.parse_args()
     saved_folder = Path("./saved/") / args.saved_folder
@@ -292,7 +353,9 @@ if __name__ == "__main__":
     config["general"]["num_period"] = 2_000
 
     logger = Logger()
-    model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
+    model = GAModel(
+        config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3"
+    )
     # model = CpModel(config)
     optimizer = OptimizationOrchestrator(model=model, verbose=1, enable_cprofile=False)
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
@@ -300,9 +363,10 @@ if __name__ == "__main__":
     optimizer.log_score()
     optimizer.save_solution(dir_=str(saved_folder))
 
-    yesno = input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
+    yesno = (
+        input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
+    )
     if yesno == "y":
         optimizer.render_best_solution()
     else:
         print("Simulation visualization skipped.")
-

@@ -32,7 +32,8 @@ def data_to_dataframe(
     # concatène tout d’un coup sur les colonnes
     return pd.concat(dfs, axis=1)
 
-# old dataframe creation, work with this version of kpis generator 
+
+# old dataframe creation, work with this version of kpis generator
 # need refactor to use new dataframe creation
 def former_data_to_dataframe(
     factory: Factory, storages: list[Storage], ships: list[object]
@@ -85,7 +86,7 @@ def wait_for_bad_weather_before_leaving_port(
 
 def get_destination_from_name(
     name: str, factory: Factory, storages: list[Storage]
-) -> Storage | Factory :
+) -> Storage | Factory:
     if factory.name == name:
         return factory
     for s in storages:
@@ -97,6 +98,7 @@ def get_destination_from_name(
     Available storages: {', '.join([s.name for s in storages])}
     """
     raise ValueError(error_msg)
+
 
 def generate_combinations(parameter_ranges) -> list:
     if isinstance(parameter_ranges, dict) and "range" in parameter_ranges:
@@ -130,13 +132,14 @@ def generate_combinations(parameter_ranges) -> list:
         # For scalar values, wrap in a list for consistency
         return [parameter_ranges]
 
+
 def get_simlulation_variable(file_path):
-    path = (Path.cwd() / file_path ).resolve()
+    path = (Path.cwd() / file_path).resolve()
     with open(str(path), "r") as file:
         parameter_ranges = yaml.safe_load(file)
     return generate_combinations(parameter_ranges)
 
-    
+
 def get_Logger():
     """
     Crée un logger configuré pour l'application.
