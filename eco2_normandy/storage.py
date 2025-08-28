@@ -28,7 +28,7 @@ class Storage(Port):
         number_of_tanks,
         cost_per_tank,
         logger,
-        **kwargs
+        **kwargs,
     ) -> None:
         super().__init__(
             num_period_per_hours,
@@ -74,9 +74,7 @@ class Storage(Port):
             yield self.env.timeout(1)
 
     def pump(self, amount):
-        pump_rate = (
-            self.pump_in_maintenance_rate if self.maintenance else self.pump_rate
-        )
+        pump_rate = self.pump_in_maintenance_rate if self.maintenance else self.pump_rate
         available_space = self._get_capacity_left()
         transferable = min(pump_rate, amount, available_space)
         if transferable:

@@ -17,7 +17,6 @@ from eco2_normandy.logger import Logger
 
 
 class AnimeCfg:
-
     NAME = None
     # Couleurs (red, green, bleu, alpha)
     WHITE = [255, 255, 255, 255]
@@ -99,9 +98,7 @@ class PGAnime:
 
         # Pygame setup
         pygame.init()
-        self.screen = pygame.display.set_mode(
-            (self.WIDTH, self.HEIGHT), pygame.RESIZABLE
-        )
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
         pygame.display.set_caption("Animation de la Simulation")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont(None, 24)
@@ -111,9 +108,7 @@ class PGAnime:
         # UI controls
         # Slider pour la vitesse de simulation
         slider_width, slider_height = 200, 10
-        self.slider_rect = pygame.Rect(
-            0, 0, slider_width, slider_height
-        )  # Position (x, y) def dans 'dessine_UI'
+        self.slider_rect = pygame.Rect(0, 0, slider_width, slider_height)  # Position (x, y) def dans 'dessine_UI'
         slider_knob_width = 10
         self.knob_rect = pygame.Rect(0, 0, slider_knob_width, slider_height)
         self.dragging = False
@@ -133,9 +128,7 @@ class PGAnime:
         self.kpis_graphs = []
 
         # FPS
-        self.current_fps = min(
-            max(self.cfg.DEFAULT_FPS, self.cfg.MIN_FPS), self.cfg.MAX_FPS
-        )
+        self.current_fps = min(max(self.cfg.DEFAULT_FPS, self.cfg.MIN_FPS), self.cfg.MAX_FPS)
 
         # scroll / pan
         self.view_offset = [0, 0]
@@ -158,9 +151,7 @@ class PGAnime:
 
     def _init_surfaces(self):
         """Crée les surfaces Pygame pour l’UI, l’animation et les KPIs."""
-        self.ui_surf = pygame.Surface(
-            (self.WIDTH, self.ui_height), pygame.SRCALPHA
-        )  # UI fixe
+        self.ui_surf = pygame.Surface((self.WIDTH, self.ui_height), pygame.SRCALPHA)  # UI fixe
         self.anim_surf = pygame.Surface((self.WIDTH, self.anim_height), pygame.SRCALPHA)
         # todo anim_surf.subsurface (width fix /p ) pour une zone dedié a l'animation ? cplipping integré
         self._set_kpis_surface()
@@ -298,9 +289,7 @@ class PGAnime:
         """
         x, y = pos
         screen_x = x
-        screen_y = (
-            y - self.view_offset[1]
-        )  # "-" car on scroll vers le bas (limite haute en y=0)
+        screen_y = y - self.view_offset[1]  # "-" car on scroll vers le bas (limite haute en y=0)
         return [screen_x, screen_y]
 
     def _get_screen_position(self):
@@ -334,15 +323,11 @@ class PGAnime:
         slider_knob_width = self.knob_rect.width
         self.slider_rect.x, self.slider_rect.y = slider_x, slider_y
         self.knob_rect.x = (
-            slider_x
-            + slider_width * (self.current_fps - self.cfg.MIN_FPS) / self.cfg.MAX_FPS
-            - slider_knob_width / 2
+            slider_x + slider_width * (self.current_fps - self.cfg.MIN_FPS) / self.cfg.MAX_FPS - slider_knob_width / 2
         )
         self.knob_rect.y = slider_y
 
-        pygame.draw.rect(
-            self.ui_surf, self.cfg.BLACK, self.slider_rect, 2, border_radius=10
-        )
+        pygame.draw.rect(self.ui_surf, self.cfg.BLACK, self.slider_rect, 2, border_radius=10)
         pygame.draw.rect(self.ui_surf, self.cfg.RED, self.knob_rect, border_radius=10)
         fps_text = self.font.render(
             f"Vitesse de simulation: {'x' + str(self.current_fps) if self.current_fps != 0 else 'uncap'}",
@@ -352,25 +337,19 @@ class PGAnime:
         self.ui_surf.blit(fps_text, (self.slider_rect.x, self.slider_rect.y - 20))
 
         # Bouton Pause/Resume
-        pygame.draw.rect(
-            self.ui_surf, self.cfg.ORANGE, self.pause_button_rect, border_radius=10
-        )
+        pygame.draw.rect(self.ui_surf, self.cfg.ORANGE, self.pause_button_rect, border_radius=10)
         btn_text = "Resume" if self.paused else "Pause"
         btn_surface = self.font.render(btn_text, True, self.cfg.BLACK)
         btn_rect = btn_surface.get_rect(center=self.pause_button_rect.center)
         self.ui_surf.blit(btn_surface, btn_rect)
 
         # bouton KPIs
-        pygame.draw.rect(
-            self.ui_surf, self.cfg.PURPLE, self.kpi_button_rect, border_radius=10
-        )
+        pygame.draw.rect(self.ui_surf, self.cfg.PURPLE, self.kpi_button_rect, border_radius=10)
         txt = self.font.render("KPIs", True, self.cfg.BLACK)
         txt_rect = txt.get_rect(center=self.kpi_button_rect.center)
         self.ui_surf.blit(txt, txt_rect)
 
-        time_text = self.font.render(
-            f"Time: {int(self.env.now / self.PERIODE)} heures", True, self.cfg.BLACK
-        )
+        time_text = self.font.render(f"Time: {int(self.env.now / self.PERIODE)} heures", True, self.cfg.BLACK)
         self.ui_surf.blit(time_text, (10, 10))
 
     def draw_ship(self, ship):
@@ -390,9 +369,7 @@ class PGAnime:
                 end = ship.destination.position
                 storage_name = ship.destination.name
 
-            total_distance = self.config["general"]["distances"]["Le Havre"][
-                storage_name
-            ]
+            total_distance = self.config["general"]["distances"]["Le Havre"][storage_name]
             progress = 1 - (ship.distance_to_go / total_distance)
 
             # Permet de demarer au meme endroit ou le bateau est en docking/waiting
@@ -409,33 +386,21 @@ class PGAnime:
             # Lorsque le navire est docké, on l'affiche au point d'arrivée avec une barre de chargement.
             pos = ship.destination.position
             port_pos = self._get_img_port_position(pos)  # utiliser la position du port
-            ship_pos = [
-                i - self.SHIP_SIZE // 2 for i in port_pos
-            ]  # affiche le bateau au milieu du port
+            ship_pos = [i - self.SHIP_SIZE // 2 for i in port_pos]  # affiche le bateau au milieu du port
             self.anim_surf.blit(ship.img, ship_pos)
 
             match ship.destination:
                 case Factory():
-                    progress = (
-                        ship.capacity / ship.capacity_max
-                        if ship.capacity_max != 0
-                        else 0
-                    )
+                    progress = ship.capacity / ship.capacity_max if ship.capacity_max != 0 else 0
                 case Storage():
-                    progress = (
-                        1 - ship.capacity / ship.capacity_max
-                        if ship.capacity_max != 0
-                        else 0
-                    )
+                    progress = 1 - ship.capacity / ship.capacity_max if ship.capacity_max != 0 else 0
 
             bar_height = 10
             bar_width = self.PORT_SIZE
             # Les lignes suivante permetent d'afficher les bar de chargement horizontal, les un en dessous des autres, automatiquement.
             # Ex: {"Le Havre": {"ship1":1, "ship2":2}, "Bergen":{"ship3":1}} etc
             try:  # Block try, pour pouvoir utiliser l'ancienne simulation : debug
-                port_name = [s.name for s in self.simulation.storages] + [
-                    self.simulation.factory.name
-                ]
+                port_name = [s.name for s in self.simulation.storages] + [self.simulation.factory.name]
                 all_ship_order = {
                     destination_name: {
                         s.name: s.dock_req.order
@@ -450,9 +415,7 @@ class PGAnime:
                         key=lambda x: x[1],
                     )
                 )
-                order = [
-                    i for i, k in enumerate(all_ship_order.keys()) if k == ship.name
-                ][0]
+                order = [i for i, k in enumerate(all_ship_order.keys()) if k == ship.name][0]
                 marge = 1
                 offset = (bar_height + marge) * order
             except:
@@ -480,9 +443,7 @@ class PGAnime:
             alpha = 0.6 if ship.capacity == 0 else 1
             ship.img = ship.base_img.copy()
             ship.img.set_alpha(int(255 * alpha))
-            ship_pos = self._get_ship_position_when_docking_or_waiting(
-                ship.destination.position
-            )
+            ship_pos = self._get_ship_position_when_docking_or_waiting(ship.destination.position)
             self.anim_surf.blit(ship.img, ship_pos)
 
     def _draw_smoke(self, port, pos):
@@ -491,15 +452,9 @@ class PGAnime:
             self.wast_production_overtime = 0
         elif not self.paused:
             self.wast_production_overtime += port.wasted_production
-        txt = (
-            f"Wasted production: {int(self.wast_production_overtime)}"
-            if alpha != 0
-            else ""
-        )
+        txt = f"Wasted production: {int(self.wast_production_overtime)}" if alpha != 0 else ""
         txt = self.font.render(txt, True, self.cfg.RED)
-        smoke_pos = self._get_smoke_pos_for_factory_wasted_production(
-            factory_position=pos
-        )
+        smoke_pos = self._get_smoke_pos_for_factory_wasted_production(factory_position=pos)
         port.smoke_img.set_alpha(int(255 * alpha))
         self._blit_port_image(port.smoke_img, smoke_pos, self.PORT_SIZE)
         self._blit_text(txt, (smoke_pos[0] - 60, smoke_pos[1] - 60))
@@ -518,15 +473,11 @@ class PGAnime:
         if isinstance(port, Factory):
             self._draw_smoke(port, pos)
         ratio = port.capacity / port.capacity_max
-        text = self.font.render(
-            f"{port.name}: {int(ratio * 100)}%", True, self.cfg.BLACK
-        )
+        text = self.font.render(f"{port.name}: {int(ratio * 100)}%", True, self.cfg.BLACK)
         self._blit_text(text, (pos[0] - 40, pos[1] - 60))
         self._draw_vertical_progress_bar(port, port.color, pos=pos)
 
-    def _draw_vertical_progress_bar(
-        self, port, color, offset_x=4, border_radius=10, pos=None
-    ):
+    def _draw_vertical_progress_bar(self, port, color, offset_x=4, border_radius=10, pos=None):
         bar_height = self.PORT_SIZE
         bar_width = 12
         progress = (port.capacity / port.capacity_max) if port.capacity_max > 0 else 0
@@ -572,9 +523,7 @@ class PGAnime:
         if self.show_kpis:
             self.screen.blit(self.kpis_surf, positions["kpis"])
             self._draw_dynamic_border(self.kpis_surf, positions["kpis"])
-        self.screen.blit(
-            self.ui_surf, (0, 0)
-        )  # fixe, blit en denier pour qu'il soit devant
+        self.screen.blit(self.ui_surf, (0, 0))  # fixe, blit en denier pour qu'il soit devant
         self._draw_dynamic_border(self.ui_surf, positions["ui"])
 
     def fill_surf(self, color):
@@ -606,9 +555,7 @@ class PGAnime:
             new_w = max(800, event.w)
             new_h = max(800, event.h)
             self.WIDTH, self.HEIGHT = new_w, new_h
-            self.screen = pygame.display.set_mode(
-                (self.WIDTH, self.HEIGHT), pygame.RESIZABLE
-            )
+            self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
             self.kpis_generator.on_resize(self.screen.get_size(), self.cfg.WINDOW_SIZE)
             self._init_surfaces()
             self._init_port_position()
@@ -651,12 +598,8 @@ class PGAnime:
                 ),
             )
             self.knob_rect.x = new_knob_x
-            relative_pos = (self.knob_rect.x - self.slider_rect.x) / (
-                self.slider_rect.width - self.knob_rect.width
-            )
-            self.current_fps = int(
-                self.cfg.MIN_FPS + relative_pos * (self.cfg.MAX_FPS - self.cfg.MIN_FPS)
-            )
+            relative_pos = (self.knob_rect.x - self.slider_rect.x) / (self.slider_rect.width - self.knob_rect.width)
+            self.current_fps = int(self.cfg.MIN_FPS + relative_pos * (self.cfg.MAX_FPS - self.cfg.MIN_FPS))
 
     def _step(self, step):
         """Fait avancer la simulation jusqu’à `step` ou marque la pause si fin atteinte.

@@ -62,10 +62,7 @@ class SimCallback(CpSolverSolutionCallback):
             sim.run()
         except Exception as e:
             if self.verbose > 2:
-                self.log.warning(
-                    Fore.RED
-                    + f"Simulation échouée pour la solution {self.evals}. {e}\n"
-                )
+                self.log.warning(Fore.RED + f"Simulation échouée pour la solution {self.evals}. {e}\n")
             if self.verbose >= 2:
                 self.log.warning(f"{cfg}" + Fore.RESET)
             return None
@@ -108,11 +105,7 @@ class SimCallback(CpSolverSolutionCallback):
         # 2.1 Limiter le nombre d'évaluations
         if self.evals > self.max_evals:
             if self.verbose >= 1:
-                self.log.info(
-                    Fore.RED
-                    + f"=== Limite d'évaluations atteinte ({self.max_evals}) ==="
-                    + Fore.RESET
-                )
+                self.log.info(Fore.RED + f"=== Limite d'évaluations atteinte ({self.max_evals}) ===" + Fore.RESET)
             self.StopSearch()
             return
 
@@ -121,9 +114,7 @@ class SimCallback(CpSolverSolutionCallback):
 
         sur_met = surrogate_metrics(sol, self.base_config)
         self.surrogate_met.append(sur_met)
-        if not self._add_metrics_to_front(
-            self.surrogate_met, self.surrogate_front, front_name="surrogate_front"
-        ):
+        if not self._add_metrics_to_front(self.surrogate_met, self.surrogate_front, front_name="surrogate_front"):
             return
 
         if self.verbose > 2:
@@ -135,25 +126,19 @@ class SimCallback(CpSolverSolutionCallback):
 
         cfg = self.get_config_from_solution(sol)
         sim = self.run_simulation(cfg)
-        if (
-            sim is None
-        ):  # if simulation failed, skip this solution, and continue to the next one
+        if sim is None:  # if simulation failed, skip this solution, and continue to the next one
             return
         metrics = self.calculate_performance_metrics(cfg, sim)
         self.kpis_list.append(metrics)
-        if not self._add_metrics_to_front(
-            self.kpis_list, self.pareto_front, front_name="pareto_front"
-        ):
+        if not self._add_metrics_to_front(self.kpis_list, self.pareto_front, front_name="pareto_front"):
             return
 
         if self.verbose > 2:
             self.log.info(
-                Fore.GREEN
-                + f"→ Coût total combiné = {self.kpis_list[-1]['cost']:,.0f} €\n"
+                Fore.GREEN + f"→ Coût total combiné = {self.kpis_list[-1]['cost']:,.0f} €\n"
                 f"\t→ production gaspillée = {self.kpis_list[-1]['wasted_production_over_time']:,.0f} m^3\n"
                 f"\t→ Temps d'attente total = {self.kpis_list[-1]['waiting_time']:,.0f} s\n"
-                f"\t→ Taux de remplissage de l'usine = {self.kpis_list[-1]['underfill_rate']*100:.2f}%\n"
-                + Fore.RESET
+                f"\t→ Taux de remplissage de l'usine = {self.kpis_list[-1]['underfill_rate'] * 100:.2f}%\n" + Fore.RESET
             )
 
         self.raw_metrics.loc[self.evals] = metrics.iloc[0]
@@ -177,9 +162,7 @@ class SimCallback(CpSolverSolutionCallback):
     def _compute_raw_scores(self) -> None:
         """Retourne les scores bruts finaux sous forme de DataFrame."""
         if self.raw_metrics.empty:
-            self.log.info(
-                Fore.YELLOW + "Aucun score brut calculé, DataFrame vide." + Fore.RESET
-            )
+            self.log.info(Fore.YELLOW + "Aucun score brut calculé, DataFrame vide." + Fore.RESET)
             return
         if "score" in self.raw_metrics.columns:
             return

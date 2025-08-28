@@ -50,9 +50,7 @@ def print_diffs(cfg1, cfg2, all_keys=None):
     cfg1 = ensure_constante_are_ignore(cfg1)
     cfg2 = ensure_constante_are_ignore(cfg2)
 
-    print(
-        f"Comparaison entre '{cfg1.pop('name', '<unknown>')}' et '{cfg2.pop('name', '<unknown>')}' :"
-    )
+    print(f"Comparaison entre '{cfg1.pop('name', '<unknown>')}' et '{cfg2.pop('name', '<unknown>')}' :")
     for key in all_keys:
         v1 = cfg1.get(key, "<absent>")
         v2 = cfg2.get(key, "<absent>")
@@ -78,13 +76,7 @@ def main():
         print("Entrée invalide. Veuillez entrer des numéros valides.")
         sys.exit(1)
 
-    if (
-        idx1 < 0
-        or idx1 >= len(configs)
-        or idx2 < 0
-        or idx2 >= len(configs)
-        or idx1 == idx2
-    ):
+    if idx1 < 0 or idx1 >= len(configs) or idx2 < 0 or idx2 >= len(configs) or idx1 == idx2:
         print("Numéros invalides ou identiques.")
         sys.exit(1)
 

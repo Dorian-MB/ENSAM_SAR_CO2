@@ -82,9 +82,7 @@ class LiveKpisGraphsGenerator:
         """
         Initialise chaque graphe et stocke une fonction update(step) retournant (raw_rgba, (w,h)).
         """
-        plot_factory_capacity_evolution = self._init_plot_factory_capacity_evolution(
-            figsize
-        )
+        plot_factory_capacity_evolution = self._init_plot_factory_capacity_evolution(figsize)
         self._init_canvas(plot_factory_capacity_evolution)
 
         def update_capacity():
@@ -105,9 +103,7 @@ class LiveKpisGraphsGenerator:
 
         self.graphs["factory_capacity"] = update_capacity
 
-        plot_factory_capacity_evolution_violin = (
-            self._init_plot_factory_capacity_evolution_violin(figsize)
-        )
+        plot_factory_capacity_evolution_violin = self._init_plot_factory_capacity_evolution_violin(figsize)
         self._init_canvas(plot_factory_capacity_evolution_violin)
 
         def update_violin():
@@ -121,14 +117,7 @@ class LiveKpisGraphsGenerator:
             for key, artists in parts.items():
                 for art in np.atleast_1d(artists):
                     art.remove()
-            for artist in (
-                box["boxes"]
-                + box["medians"]
-                + box["whiskers"]
-                + box["caps"]
-                + box["fliers"]
-                + box["means"]
-            ):
+            for artist in box["boxes"] + box["medians"] + box["whiskers"] + box["caps"] + box["fliers"] + box["means"]:
                 artist.remove()
             # Redraw new violin and boxplot
             parts_new = ax.violinplot(
@@ -166,11 +155,7 @@ class LiveKpisGraphsGenerator:
                 for art in np.atleast_1d(artists):
                     ax.draw_artist(art)
             for artist in (
-                box_new["boxes"]
-                + box_new["medians"]
-                + box_new["whiskers"]
-                + box_new["caps"]
-                + box_new["fliers"]
+                box_new["boxes"] + box_new["medians"] + box_new["whiskers"] + box_new["caps"] + box_new["fliers"]
             ):
                 ax.draw_artist(artist)
             canvas.blit(fig.bbox)
@@ -179,9 +164,7 @@ class LiveKpisGraphsGenerator:
 
         self.graphs["factory_violin"] = update_violin
 
-        plot_storage_capacity_comparison = self._init_plot_storage_capacity_comparison(
-            figsize
-        )
+        plot_storage_capacity_comparison = self._init_plot_storage_capacity_comparison(figsize)
         self._init_canvas(plot_storage_capacity_comparison)
 
         def update_storage():
@@ -209,9 +192,7 @@ class LiveKpisGraphsGenerator:
 
         self.graphs["storage_comparison"] = update_storage
 
-        plot_wasted_production_over_time = self._init_plot_wasted_production_over_time(
-            figsize
-        )
+        plot_wasted_production_over_time = self._init_plot_wasted_production_over_time(figsize)
         self._init_canvas(plot_wasted_production_over_time)
 
         def update_wasted_prouction():
@@ -238,9 +219,7 @@ class LiveKpisGraphsGenerator:
         self.graphs["wasted_production"] = update_wasted_prouction
 
     def _set_ax_format(self, ax):
-        ax.yaxis.set_major_formatter(
-            mticker.FuncFormatter(lambda val, pos: f"{int(val/1000)}k")
-        )
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda val, pos: f"{int(val / 1000)}k"))
 
     def _get_fig(self, nom, figsize=None):
         figsize = figsize or self.figsize
@@ -273,9 +252,7 @@ class LiveKpisGraphsGenerator:
         # self.logger.info(line) # [<matplotlib.lines.Line2D object at 0x000001869533F070>]
         if type(line) == list:
             line = line[0]
-        max_line = ax.axhline(
-            capa_max, linestyle="--", linewidth=2, c="black", label="capacity max"
-        )
+        max_line = ax.axhline(capa_max, linestyle="--", linewidth=2, c="black", label="capacity max")
         lines = [line, max_line]
         self.figs[nom].append(lines)
         ax.set_ylabel("Le Havre Capacity (T co2)")
@@ -316,9 +293,7 @@ class LiveKpisGraphsGenerator:
             showextrema=not init,
             quantiles=[0.25, 0.75] if init is False else None,
         )
-        for pc in parts[
-            "bodies"
-        ]:  # contient les polygones correspondant à la forme du violon.
+        for pc in parts["bodies"]:  # contient les polygones correspondant à la forme du violon.
             pc.set_alpha(0.5)
             pc.set_facecolor("red")
 
@@ -330,9 +305,7 @@ class LiveKpisGraphsGenerator:
             patch_artist=True,
             boxprops=dict(facecolor="salmon", edgecolor="red"),
             medianprops=dict(color="black"),
-            flierprops=dict(
-                marker=".", markerfacecolor="black", markersize=4, alpha=0.6, c="red"
-            ),
+            flierprops=dict(marker=".", markerfacecolor="black", markersize=4, alpha=0.6, c="red"),
         )
         violon = [parts, box]
         self.figs[nom].append(violon)
@@ -397,13 +370,9 @@ class LiveKpisGraphsGenerator:
     def _init_plot_wasted_production_over_time(self, figsize=None, init=True):
         nom = str(inspect.currentframe().f_code.co_name).replace("_init_", "")
         fig, ax = self._get_fig(nom, figsize)
-        step, wasted_production_over_time = self._get_data_wasted_production_over_time(
-            init
-        )
+        step, wasted_production_over_time = self._get_data_wasted_production_over_time(init)
 
-        line = ax.plot(
-            step, wasted_production_over_time, label="wasted production", c="salmon"
-        )
+        line = ax.plot(step, wasted_production_over_time, label="wasted production", c="salmon")
         if type(line) == list:
             line = line[0]
         max_ = wasted_production_over_time.max()

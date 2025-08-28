@@ -60,17 +60,13 @@ class MixedVariableSampling(Sampling):
 
             if isinstance(var, Integer):
                 # Integer variables with bounds
-                X[:, i] = np.random.randint(
-                    var.bounds[0], var.bounds[1] + 1, size=n_samples
-                )
+                X[:, i] = np.random.randint(var.bounds[0], var.bounds[1] + 1, size=n_samples)
             elif isinstance(var, Choice):
                 # Choice variables - select from options
                 X[:, i] = np.random.choice(range(len(var.options)), size=n_samples)
             elif isinstance(var, Real):
                 # Real variables (if any)
-                X[:, i] = np.random.uniform(
-                    var.bounds[0], var.bounds[1], size=n_samples
-                ).astype(int)
+                X[:, i] = np.random.uniform(var.bounds[0], var.bounds[1], size=n_samples).astype(int)
 
         return X
 
@@ -115,8 +111,8 @@ class ShipConsistencyRepair(Repair):
 
             # 1. Force unused ships to default values (main repair benefit)
             for ship_idx in range(num_ships, self.max_ships):
-                x_dict[f"init{ship_idx+1}_destination"] = 0  # Le Havre
-                x_dict[f"fixed{ship_idx+1}_storage_destination"] = 0  # Default
+                x_dict[f"init{ship_idx + 1}_destination"] = 0  # Le Havre
+                x_dict[f"fixed{ship_idx + 1}_storage_destination"] = 0  # Default
 
             # 2. Storage use fixed: not twice the same; and ensure at least one is used; and not more than available
             if num_storages == 2:
@@ -136,26 +132,20 @@ class ShipConsistencyRepair(Repair):
             # map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
             # map_ship_initial_destination = {0: "Le Havre", 1: "Rotterdam", 2: "Bergen"}
             for ship_idx in range(num_ships):
-                current_fixed = x_dict[f"fixed{ship_idx+1}_storage_destination"]
-                current_init = x_dict[f"init{ship_idx+1}_destination"]
+                current_fixed = x_dict[f"fixed{ship_idx + 1}_storage_destination"]
+                current_init = x_dict[f"init{ship_idx + 1}_destination"]
 
                 # Only repair if the chosen storage is completely unavailable
-                if (
-                    current_fixed == 1 and not has_bergen
-                ):  # Wants Bergen but unavailable
-                    x_dict[f"fixed{ship_idx+1}_storage_destination"] = 0  # → Rotterdam
-                elif (
-                    current_fixed == 0 and not has_rotterdam
-                ):  # Wants Rotterdam but unavailable
-                    x_dict[f"fixed{ship_idx+1}_storage_destination"] = 1  # → Bergen
+                if current_fixed == 1 and not has_bergen:  # Wants Bergen but unavailable
+                    x_dict[f"fixed{ship_idx + 1}_storage_destination"] = 0  # → Rotterdam
+                elif current_fixed == 0 and not has_rotterdam:  # Wants Rotterdam but unavailable
+                    x_dict[f"fixed{ship_idx + 1}_storage_destination"] = 1  # → Bergen
 
                 # If the initial destination is unavailable, set it to the factory
                 if current_init == 2 and not has_bergen:  # Wants Bergen but unavailable
-                    x_dict[f"init{ship_idx+1}_destination"] = 0
-                elif (
-                    current_init == 1 and not has_rotterdam
-                ):  # Wants Rotterdam but unavailable
-                    x_dict[f"init{ship_idx+1}_destination"] = 0
+                    x_dict[f"init{ship_idx + 1}_destination"] = 0
+                elif current_init == 1 and not has_rotterdam:  # Wants Rotterdam but unavailable
+                    x_dict[f"init{ship_idx + 1}_destination"] = 0
 
             # Convert back to array
             X[i] = problem._dict_to_array(x_dict)
@@ -193,15 +183,11 @@ class SimulationProblem(ElementwiseProblem):
         self.var_names = []
 
         # Core variables with discrete types
-        self.variables["num_storages"] = Integer(
-            bounds=(1, boundaries.max_num_storages)
-        )
+        self.variables["num_storages"] = Integer(bounds=(1, boundaries.max_num_storages))
         self.variables["use_Bergen"] = Choice(options=[0, 1])
         self.variables["use_Rotterdam"] = Choice(options=[0, 1])
         self.variables["num_ship"] = Integer(bounds=(1, boundaries.max_num_ships))
-        self.variables["ship_speed"] = Integer(
-            bounds=(boundaries.ship_speed["min"], boundaries.ship_speed["max"])
-        )
+        self.variables["ship_speed"] = Integer(bounds=(boundaries.ship_speed["min"], boundaries.ship_speed["max"]))
         self.variables["number_of_tanks"] = Integer(
             bounds=(boundaries.factory_tanks["min"], boundaries.factory_tanks["max"])
         )
@@ -222,12 +208,8 @@ class SimulationProblem(ElementwiseProblem):
 
         # Variables per ship (destinations) with explicit choices
         for i in range(boundaries.max_num_ships):
-            self.variables[f"init{i+1}_destination"] = Choice(
-                options=[0, 1, 2]
-            )  # Le Havre, Rotterdam, Bergen
-            self.variables[f"fixed{i+1}_storage_destination"] = Choice(
-                options=[0, 1]
-            )  # Rotterdam, Bergen
+            self.variables[f"init{i + 1}_destination"] = Choice(options=[0, 1, 2])  # Le Havre, Rotterdam, Bergen
+            self.variables[f"fixed{i + 1}_storage_destination"] = Choice(options=[0, 1])  # Rotterdam, Bergen
 
         # Store variable names in order for array conversion
         self.var_names = list(self.variables.keys())
@@ -317,9 +299,7 @@ class SimulationProblem(ElementwiseProblem):
         # Build simulation config directly from variable dict
         cfg = self.cfg_builder.build(x_dict)
         sim = self._run_simulation(cfg)
-        metrics = calculate_performance_metrics(
-            cfg, sim, metrics_keys=self.metrics_keys
-        )
+        metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
 
         # Assign objectives
         objectives = [metrics[k].iloc[0] for k in self.metrics_keys]
@@ -364,9 +344,7 @@ class GAModel:
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
         self.normalize = Normalizer()
 
-    def _calculate_valid_population_sizes(
-        self, n_dim: int, max_size: int = 500
-    ) -> list[tuple[int, int]]:
+    def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 500) -> list[tuple[int, int]]:
         """Calcule les tailles de population valides pour NSGA3"""
         valid_sizes = []
         for n_partitions in range(1, 20):  # test jusqu'à 20 partitions
@@ -397,14 +375,10 @@ class GAModel:
             valid_pop_size = self._get_closest_valid_pop_size(self.pop_size, self.n_obj)
             if valid_pop_size != self.pop_size:
                 self.log.warning(
-                    Fore.RED
-                    + f"Adjusting pop_size from {self.pop_size} to {valid_pop_size} for NSGA3"
-                    + Fore.RESET
+                    Fore.RED + f"Adjusting pop_size from {self.pop_size} to {valid_pop_size} for NSGA3" + Fore.RESET
                 )
                 self.pop_size = valid_pop_size
-            ref_dirs = UniformReferenceDirectionFactory(
-                n_dim=self.n_obj, n_points=self.pop_size
-            ).do()
+            ref_dirs = UniformReferenceDirectionFactory(n_dim=self.n_obj, n_points=self.pop_size).do()
             algorithm = NSGA3(
                 pop_size=self.pop_size,
                 eliminate_duplicates=True,
@@ -457,9 +431,7 @@ class GAModel:
         if self.parallelization:
             pool.close()
             pool.join()
-            self.problem.kpis_list = list(
-                kpis_list
-            )  # Convertir la liste partagée en liste normale
+            self.problem.kpis_list = list(kpis_list)  # Convertir la liste partagée en liste normale
         self._set_results()
 
     def _minimize(self, algo: GeneticAlgorithm, pool):
@@ -469,16 +441,10 @@ class GAModel:
         """
         try:
             termination = get_termination("n_gen", self.n_gen)
-            self.res = minimize(
-                self.problem, algo, termination, seed=1, verbose=self.verbose
-            )
+            self.res = minimize(self.problem, algo, termination, seed=1, verbose=self.verbose)
             self.istrain = True
         except Exception as e:
-            self.log.error(
-                Fore.RED
-                + f"Error occurred during minimization `GASolver`: {e}"
-                + Fore.RESET
-            )
+            self.log.error(Fore.RED + f"Error occurred during minimization `GASolver`: {e}" + Fore.RESET)
             raise e
         finally:
             if self.parallelization:
@@ -544,17 +510,9 @@ class GAModel:
         if self.res is None:
             raise RuntimeError("No results available. Call solve() first.")
 
-        self.log.info(
-            Fore.LIGHTCYAN_EX
-            + f"Best solution score {Fore.RESET}{self.best_score['score']}"
-        )
-        self.log.info(
-            Fore.LIGHTCYAN_EX
-            + f"Objectives:\n{Fore.RESET}{self.best_score.drop('score')}"
-        )
-        self.log.info(
-            Fore.LIGHTCYAN_EX + f"Solution:\n{Fore.RESET}{self.best_solution}"
-        )
+        self.log.info(Fore.LIGHTCYAN_EX + f"Best solution score {Fore.RESET}{self.best_score['score']}")
+        self.log.info(Fore.LIGHTCYAN_EX + f"Objectives:\n{Fore.RESET}{self.best_score.drop('score')}")
+        self.log.info(Fore.LIGHTCYAN_EX + f"Solution:\n{Fore.RESET}{self.best_solution}")
 
     def _run_simulation(self, cfg: dict) -> Simulation:
         """Run the simulation with the given configuration."""
@@ -568,11 +526,7 @@ class GAModel:
 
     def data_to_saved(self) -> dict:
         if self.istrain is False:
-            self.log.warning(
-                Fore.RED
-                + "No solutions or results available. Call solve() first."
-                + Fore.RESET
-            )
+            self.log.warning(Fore.RED + "No solutions or results available. Call solve() first." + Fore.RESET)
             return {}
         return {
             "solutions_ga": self.solutions,
@@ -597,9 +551,7 @@ class GAModel:
                 + Fore.RESET
             )
             raise RuntimeError("Simulation failed during evaluation.")
-        metrics = calculate_performance_metrics(
-            cfg, sim, metrics_keys=self.problem.metrics_keys
-        )
+        metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.problem.metrics_keys)
         normed_metrics = self.normalize(metrics, clip=clip)
         metrics["score"] = self.normalize.compute_score(normed_metrics)
         return metrics
