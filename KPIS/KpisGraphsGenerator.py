@@ -17,6 +17,7 @@ from eco2_normandy.tools import former_data_to_dataframe as data_to_dataframe
 
 pio.templates.default = "ggplot2"
 
+
 class KpisGraphsGenerator:
     generated_graphs_index = 0
     generated_excel_files_index = 0
@@ -322,10 +323,11 @@ class KpisGraphsGenerator:
         if return_html:
             # Convert the figure to an HTML string and save it to a variable
             plot_html = fig.to_html(
-                full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
+                full_html=False,
+                div_id=f"plot-container-{self.generated_excel_files_index}",
             )
             return plot_html, None
-        else : 
+        else:
             return fig
 
     def plot_factory_capacity_evolution_violin(self, return_html=True):
@@ -372,11 +374,12 @@ class KpisGraphsGenerator:
         if return_html:
             # Convert the figure to an HTML string and save it to a variable
             plot_html = fig.to_html(
-                full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
+                full_html=False,
+                div_id=f"plot-container-{self.generated_excel_files_index}",
             )
             return plot_html, None
         else:
-            return fig 
+            return fig
 
         # Pass plot_html to your template for rendering
 
@@ -490,8 +493,8 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-        
+            return fig1
+
     def calculate_waiting_durations(self, df, ship_column):
         # Function to calculate waiting times for each ship based on the states
         waiting_durations = []
@@ -517,9 +520,7 @@ class KpisGraphsGenerator:
                     current_destination = destination
 
                 # End of waiting phase: state changes from 'WAITING' to something else
-                elif (
-                    state not in waiting_states and current_state in waiting_states
-                ):
+                elif state not in waiting_states and current_state in waiting_states:
                     duration = step - current_wait_start
                     if duration > 0:  # Ensure valid duration
                         waiting_durations.append(duration)
@@ -594,8 +595,7 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-
+            return fig1
 
     def calculate_total_co2(self):
         # Function to calculate total CO2 transported (proportional to the ship's capacity)
@@ -677,7 +677,7 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
+            return fig1
 
     def plot_storage_capacity_comparison(self, return_html=True):
         # Initialize variables to track the total hours for each condition
@@ -779,8 +779,7 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-
+            return fig1
 
     def plot_factory_wasted_production_over_time(self, return_html=True):
         # Extract the 'wasted_production' values and the corresponding 'step' values
@@ -846,8 +845,7 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-
+            return fig1
 
     def calculate_functional_kpis(self):
         # KPIs for the first table (Investissement de Départ)
@@ -1128,7 +1126,6 @@ class KpisGraphsGenerator:
         else:
             return fig
 
-
     def plot_metric_kpis_table(self, return_html=True):
         co2_vented_quantity = sum(
             [i.get("wasted_production", 0) for i in self.df[self.factory_column]]
@@ -1220,12 +1217,10 @@ class KpisGraphsGenerator:
         # Save the Plotly figure as an HTML file
         kpis_html = fig.to_html(full_html=False, div_id="KPIS_metrics_table")
 
-
         if return_html:
             return kpis_html, None
         else:
-            return fig 
-
+            return fig
 
     def parse_dict(self, value):
         try:
@@ -1308,7 +1303,12 @@ class KpisGraphsGenerator:
         simulations_by_ports = {
             "Bergen": [i for i in simulations if "bergen" in i.config_name],
             "Rotterdam": [i for i in simulations if "rotterdam" in i.config_name],
-            "other":[i for i in simulations if ("bergen" not in i.config_name) and ("rotterdam" not in i.config_name)]
+            "other": [
+                i
+                for i in simulations
+                if ("bergen" not in i.config_name)
+                and ("rotterdam" not in i.config_name)
+            ],
         }
 
         combined_df = pd.DataFrame()

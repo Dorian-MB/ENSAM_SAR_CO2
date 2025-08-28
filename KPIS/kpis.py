@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 sys.path.append(str(Path.cwd()))
 
 import numpy as np
@@ -7,6 +8,7 @@ import pandas as pd
 
 from eco2_normandy.logger import Logger
 from KPIS.utils import to_MultiIndex_dfs
+
 
 class Kpis:
     def __init__(self, simulation_df, config, logger=None):
@@ -23,17 +25,17 @@ class Kpis:
         self.trips = self._trip_analysis()
 
     def get_non_numpy_sol(self, dic):
-        return {k:float(v) for k, v in dic.items()}
-    
+        return {k: float(v) for k, v in dic.items()}
+
     # TODO: look like not needed
     def safe_float_conversion(self, val, default=0.0):
         """
         Safely convert a value to float, handling pandas Series from MultiIndex DataFrames.
-        
+
         Args:
             val: Value to convert (could be scalar, Series, etc.)
             default: Default value if conversion fails
-            
+
         Returns:
             float: Converted value
         """
@@ -67,17 +69,18 @@ class Kpis:
             current_trip = init_trips()
 
             for _, row in df_ship.iterrows():
-                state = str(row['state'])
-                destination_name = row['destination']
-                capacity = row.get('capacity')
+                state = str(row["state"])
+                destination_name = row["destination"]
+                capacity = row.get("capacity")
 
-                if state == "DOCKED" :
+                if state == "DOCKED":
                     # Condition de fin d'un trajet
                     n_trips = sum(current_trip[s] for s in states)
-                    if (destination_name == self.factory_name 
+                    if (
+                        destination_name == self.factory_name
                         and capacity == 0
                         and n_trips > 2
-                        ):
+                    ):
                         trips_list.append(current_trip)
                         # Reset des compteurs pour un nouveau trajet
                         current_trip = init_trips()
@@ -97,8 +100,8 @@ class Kpis:
         df = self.dfs[self.factory_name]
         capa_mean = df.capacity.mean()
         capa_max = df["capacity_max"].iloc[0]
-        return capa_mean/capa_max
-    
+        return capa_mean / capa_max
+
     def storage_filling_rate(self):
         storage_rates = {}
         for storage_name in self.storage_names:
@@ -107,11 +110,11 @@ class Kpis:
             capa_max = df["capacity_max"].iloc[0]
             storage_rates[storage_name] = capa_mean / capa_max
         return pd.Series(storage_rates).mean()
-    
+
     def wasted_production(self):
         return self.dfs[self.factory_name]["wasted_production"].sum()
 
-    def _get_states_to_dfs(self, states:list): 
+    def _get_states_to_dfs(self, states: list):
         ships_states = {}
         for s in self.get_lvl_0_index(self.trips):
             df = self.trips[s].fillna(0)
@@ -122,7 +125,7 @@ class Kpis:
     def get_waiting_time_dfs(self):
         waiting_states = ["DOCKED", "WAITING"]
         return self._get_states_to_dfs(waiting_states)
-    
+
     def get_total_waiting_time(self):
         dfs = self.get_waiting_time_dfs()
         return dfs.sum().sum()
@@ -143,17 +146,23 @@ class Kpis:
         """
         kpis = {}
         factory_df = self.dfs[self.factory_name]
-        storages_df = self.dfs[self.storage_names] 
+        storages_df = self.dfs[self.storage_names]
         ships_df = self.dfs[self.ship_names]
 
         initial_row_factory = factory_df.iloc[0]
-        num_factory_tanks = self.safe_float_conversion(initial_row_factory.get("number_of_tanks", 1))
-        cost_per_tank = self.safe_float_conversion(initial_row_factory.get("cost_per_tank", 1))
+        num_factory_tanks = self.safe_float_conversion(
+            initial_row_factory.get("number_of_tanks", 1)
+        )
+        cost_per_tank = self.safe_float_conversion(
+            initial_row_factory.get("cost_per_tank", 1)
+        )
         scale_ratio = 1.2
         tank_total_cost_in_factory = num_factory_tanks * cost_per_tank * scale_ratio
 
         initial_row_ship = ships_df[self.ship_names[0]].iloc[0]
-        total_ships_buying_costs = self.safe_float_conversion(initial_row_ship.get("ship_buying_cost", 1)) * self.config["general"].get("number_of_ships", 1)
+        total_ships_buying_costs = self.safe_float_conversion(
+            initial_row_ship.get("ship_buying_cost", 1)
+        ) * self.config["general"].get("number_of_ships", 1)
 
         initial_investment = {
             "Storage Tank Purchase Cost": tank_total_cost_in_factory,
@@ -178,14 +187,30 @@ class Kpis:
 
             # Get cost parameters from the first row of the corresponding ships dataframe
             ship_params = ships_df[ship].iloc[0]
-            fuel_consumption = self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0))
-            staff_cost = self.safe_float_conversion(ship_params.get("staff_cost_per_hour", 0))
-            usage_cost = self.safe_float_conversion(ship_params.get("usage_cost_per_hour", 0))
-            immobilization_cost = self.safe_float_conversion(ship_params.get("immobilization_cost_per_hour", 0))
+            fuel_consumption = self.safe_float_conversion(
+                ship_params.get("fuel_consumption_per_day", 0)
+            )
+            staff_cost = self.safe_float_conversion(
+                ship_params.get("staff_cost_per_hour", 0)
+            )
+            usage_cost = self.safe_float_conversion(
+                ship_params.get("usage_cost_per_hour", 0)
+            )
+            immobilization_cost = self.safe_float_conversion(
+                ship_params.get("immobilization_cost_per_hour", 0)
+            )
 
-            fuel_cost += days_navigating * fuel_consumption * self.kpis.get("fuel_price_per_ton", 0)
-            ships_navigation_cost += n_actions / num_period_per_hours * (staff_cost + usage_cost)
-            ships_stoppage_cost += n_waiting / num_period_per_hours * (staff_cost + immobilization_cost)
+            fuel_cost += (
+                days_navigating
+                * fuel_consumption
+                * self.kpis.get("fuel_price_per_ton", 0)
+            )
+            ships_navigation_cost += (
+                n_actions / num_period_per_hours * (staff_cost + usage_cost)
+            )
+            ships_stoppage_cost += (
+                n_waiting / num_period_per_hours * (staff_cost + immobilization_cost)
+            )
         ships_operating_cost = fuel_cost + ships_navigation_cost + ships_stoppage_cost
 
         # Storage Cost: accumulate CO2 received and related storage costs from last row of each storage's dataframe
@@ -193,14 +218,22 @@ class Kpis:
         co2_storage_cost = 0
         for storage in self.storage_names:
             last_storage_state = storages_df[storage].iloc[-1]
-            received_co2 = self.safe_float_conversion(last_storage_state.get("received_co2_over_time", 0))
-            storage_cost_rate = self.safe_float_conversion(last_storage_state.get("storage_cost_per_m3", 0))
+            received_co2 = self.safe_float_conversion(
+                last_storage_state.get("received_co2_over_time", 0)
+            )
+            storage_cost_rate = self.safe_float_conversion(
+                last_storage_state.get("storage_cost_per_m3", 0)
+            )
             co2_capacity_stored += received_co2
             co2_storage_cost += received_co2 * storage_cost_rate
 
         # Factory CO2 Release Cost: use last row of the factory dataframe
         co2_released_in_factory = self.wasted_production()
-        co2_release_cost = co2_released_in_factory * self.config["general"].get("m3_to_tons", 0.9) * self.kpis.get("co2_release_cost_per_ton", 1)
+        co2_release_cost = (
+            co2_released_in_factory
+            * self.config["general"].get("m3_to_tons", 0.9)
+            * self.kpis.get("co2_release_cost_per_ton", 1)
+        )
 
         # Assume delay penalty is zero for now
         delay_penalty = 0.0
@@ -213,7 +246,10 @@ class Kpis:
             "CO2 Storage Cost": co2_storage_cost,
             "co2_released_cost": co2_release_cost,
             "Delay Cost": delay_penalty,
-            "Total Cost": ships_operating_cost + co2_release_cost + delay_penalty + co2_storage_cost,
+            "Total Cost": ships_operating_cost
+            + co2_release_cost
+            + delay_penalty
+            + co2_storage_cost,
         }
 
         combined_total_cost = (
