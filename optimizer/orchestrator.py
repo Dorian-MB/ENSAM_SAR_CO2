@@ -9,6 +9,7 @@ if __name__ == "__main__":
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from typing import Generator
 
 from eco2_normandy.logger import Logger
 from optimizer.utils import (
@@ -39,32 +40,28 @@ class OptimizationOrchestrator:
         self.enable_cprofile = enable_cprofile
         self.profiler = None
         self.boundaries = ConfigBoundaries(verbose=0)
-        self.cfg_builder = ConfigBuilderFromSolution(model.base_config, self.boundaries)
-        self.full_results = None
-
-    def set_model_callback(self, *args, **kwargs) -> None:
-        """
-        Set the callback for the optimizer.
-        """
-        self.model._set_callback(*args, **kwargs)
-
-    def set_base_config(self, base_config: dict) -> None:
-        """
-        Set the base configuration for the optimizer.
-        """
-        self.model.base_config = base_config
-        if hasattr(self.model, "callbacks"):
-            self.model.callbacks.base_config = base_config
-        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
+        self.history = {}
 
     def compare_solution_to_base_config(self, solution: dict = None) -> None:
         if solution is None:
             solution = self.model.best_solution
-        sol_cfg = self.cfg_builder.build(solution)
+        sol_cfg = self.model.cfg_builder.build(solution)
         base_config = self.model.base_config
         sol_cfg["name"] = "model_solution"
         base_config["name"] = "base_config"
         print_diffs(sol_cfg, base_config)
+
+    @staticmethod
+    def _get_scenarios(
+        path: str = "scenarios/", scenario_filter: str = "phase"
+    ) -> Generator[tuple[Path, dict], None, None]:
+        """
+        Récupère tous les scénarios à partir d'un fichier YAML.
+        """
+        for s_path, scenario in get_all_scenarios(path):
+            if scenario_filter and scenario_filter not in str(s_path.parent):
+                continue
+            yield s_path, scenario
 
     def evaluate_all_scenarios(
         self,
@@ -86,11 +83,9 @@ class OptimizationOrchestrator:
         """
         if self.model.istrain is False:
             self.log.info("model not trained yet, `Optimizer.optimize()`")
-            return
+            raise ValueError("model not trained yet, `Optimizer.optimize()`")
         results = []
-        for s_path, scenario in get_all_scenarios(path):
-            if scenario_filter and scenario_filter not in str(s_path.parent):
-                continue
+        for s_path, scenario in OptimizationOrchestrator._get_scenarios(path, scenario_filter=scenario_filter):
             scenario["eval_name"] = s_path.name
             scenario["general"]["num_period"] = num_period
             r = self.evaluate(scenario)
@@ -114,9 +109,7 @@ class OptimizationOrchestrator:
             pd.DataFrame: MultiIndex DataFrame with results of the evaluation.
         """
         results = []
-        for s_path, scenario in get_all_scenarios(path):
-            if scenario_filter and scenario_filter not in str(s_path.parent):
-                continue
+        for s_path, scenario in OptimizationOrchestrator._get_scenarios(path):
             scenario["eval_name"] = s_path.name
             scenario["general"]["num_period"] = num_period
             r = evaluate_single_scenario(scenario)
@@ -194,6 +187,12 @@ class OptimizationOrchestrator:
             if not self.enable_cprofile:
                 return NoProfiler()
             self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
+            if hasattr(self.model, "multiprocessing") and self.model.multiprocessing is True:
+                self.log.info(
+                    Fore.YELLOW
+                    + f"=== Running CProfile with multiprocessing can log mainly multiprocessing calls ==="
+                    + Fore.RESET
+                )
             self.profiler = cProfile.Profile()
             self.profiler.enable()
             return
@@ -212,7 +211,7 @@ class OptimizationOrchestrator:
         elif not self.enable_cprofile:
             self.log.info(Fore.YELLOW + "=== Profiling not enabled, no results to show ===" + Fore.RESET)
 
-    def _start_model_solve(self, *args, **kwargs):
+    def _start_model_solve(self, *args, **kwargs) -> None:
         self.cprofile(init=True)
         try:
             t = time.perf_counter()
@@ -236,21 +235,54 @@ class OptimizationOrchestrator:
                 Fore.GREEN + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ===" + Fore.RESET
             )
 
+    def optimize_across_phases(
+        self, num_period: int = 2_000, log_score: bool = False, print_diffs: bool = False, *args, **kwargs
+    ):
+        """Optimize the model across different phases.
+
+        Args:
+            num_period (int, optional): Number of periods for the optimization. Defaults to 2_000.
+            log_score (bool, optional): Whether to log the score. Defaults to False.
+            print_diffs (bool, optional): Whether to print differences. Defaults to False.
+        """
+        phases = {}
+        for path, base_config in OptimizationOrchestrator._get_scenarios("scenarios", scenario_filter="phase"):
+            phase = path.parts[1]
+            if phase in phases.keys():
+                continue
+            base_config["general"]["num_period"] = num_period
+            phases[phase] = base_config
+
+        for phase in sorted(phases.keys()):
+            self.log.info(Fore.YELLOW + f"=== Starting optimization for phase: {phase} ===" + Fore.RESET)
+            self.model.reset(phases[phase])
+            self.optimize(*args, **kwargs)
+            if log_score:
+                self.log_score()
+            if print_diffs:
+                self.compare_solution_to_base_config()
+            self.save_solution(dir_=f"./saved/{phase}", save_name=f"_{phase}")
+            self.history[phase] = {
+                "score": self.model.best_score,
+                "solution": self.model.best_solution,
+            }
+            self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
+
     def log_score(self) -> None:
         """
         Log the score of the current best solution.
         """
         self.model.log_score()
 
-    def save_solution(self, dir_: str = "./saved/", index: bool = True) -> None:
+    def save_solution(self, dir_: str = "./saved/", save_name: str = "", index: bool = True) -> None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
-            return
+            raise ValueError("model not trained yet, `self.solve()`")
         dir_ = Path(dir_)
         dir_.mkdir(parents=True, exist_ok=True)
         for name, df in self.model.data_to_saved().items():
             if isinstance(df, pd.DataFrame):
-                df.to_csv(dir_ / f"{name}.csv", index=index)
+                df.to_csv(dir_ / f"{name + save_name}.csv", index=index)
             else:
                 self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
         self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
@@ -267,7 +299,7 @@ class OptimizationOrchestrator:
         Returns:
             dict: The built configuration dictionary.
         """
-        return self.cfg_builder.get_config_from_solution(
+        return self.model.cfg_builder.get_config_from_solution(
             solution, algorithm=algorithm or self.model.algorithm_name, *args, **kwargs
         )
 

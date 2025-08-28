@@ -110,7 +110,8 @@ def get_simlulation_variable(file_path):
     path = (Path.cwd() / file_path).resolve()
     with open(str(path), "r") as file:
         parameter_ranges = yaml.safe_load(file)
-    return generate_combinations(parameter_ranges)
+    configs = generate_combinations(parameter_ranges)
+    return [{"name": path.stem, **config} for config in configs]
 
 
 def get_Logger():

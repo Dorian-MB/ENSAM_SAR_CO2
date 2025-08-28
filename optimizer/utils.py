@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Generator
 import sys
 
+
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
 
@@ -147,7 +148,7 @@ def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
     return pd.DataFrame(metrics, index=[0])
 
 
-def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None]:
+def get_all_scenarios(path: str, ignore_cte=False) -> Generator[tuple[Path, dict], None, None]:
     """
     Récupère tous les scénarios à partir d'un fichier YAML.
     """
@@ -158,6 +159,8 @@ def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None
             for key in ignore_keys:
                 config.pop(key, None)
         if path.is_file() and path.suffix == ".yaml":
+            config["name"] = path.stem
+            config["general"]["num_period"] = 2_000
             yield path, config
 
 
@@ -230,7 +233,7 @@ class Normalizer:
 ########## Usefull classes ##########
 # Config builder for simulation
 class ConfigBuilderFromSolution:
-    def __init__(self, base_config, boundaries):
+    def __init__(self, base_config: dict, boundaries):
         self.base_config = base_config
         self.map_ship_initial_destination = {0: "Le Havre", 1: "Rotterdam", 2: "Bergen"}
         self.map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
@@ -278,6 +281,7 @@ class ConfigBuilderFromSolution:
             self.boundaries.factory_cost_per_tank["max"],
         )
         cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
+        cfg["factory"]["intial_capacity"] = 0
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = ""
