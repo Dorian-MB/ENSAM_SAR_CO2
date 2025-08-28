@@ -37,7 +37,7 @@ class CpModel(cp_model.CpModel):
         self.metrics_weight = metrics_weight
         self.caps_step = caps_step
         self.verbose = verbose
-        self.boundaries = ConfigBoundaries()
+        self.boundaries = ConfigBoundaries(verbose=0)
         self.log = logger or Logger()
         self.solver = cp_model.CpSolver()
         self.algorithm_name = algorithm
@@ -53,6 +53,9 @@ class CpModel(cp_model.CpModel):
     def reset(self, base_config: dict):
         self.istrain = False
         self.base_config = base_config
+        self.callback_vars = []
+        self.surrogate_vars = []
+        self.vars = {}
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
 
     def _get_alogorithm(self, algorithm):
@@ -326,7 +329,7 @@ class CpModel(cp_model.CpModel):
             self.log.info(f"\n{score_heuristic}")
             self.log.info(Fore.BLUE + f"Score heuristic: {score_heuristic['score']:,.0f}" + Fore.RESET)
         else:
-            self.log.info(Fore.RED + "=== No heuristic solution found ===" + Fore.RESET)
+            self.log.info(Fore.LIGHTRED_EX + "=== No heuristic solution found ===" + Fore.RESET)
         if best_score is not None:
             self.log.info(Fore.GREEN + "=== Résultats des évaluations avec callback ===" + Fore.RESET)
             self.log.info(
@@ -339,7 +342,7 @@ class CpModel(cp_model.CpModel):
             self.log.info(Fore.BLUE + f"=>wating_time={best_score['waiting_time']:,.0f}s :" + Fore.RESET)
             self.log.info(Fore.BLUE + f"=>underfill_rate={best_score['underfill_rate'] * 100:,.2f}% :\n" + Fore.RESET)
         else:
-            self.log.info(Fore.RED + "=== Aucune callback solution trouvée ===" + Fore.RESET)
+            self.log.info(Fore.LIGHTRED_EX + "=== Aucune callback solution trouvée ===" + Fore.RESET)
 
     @property
     def scores(self) -> pd.DataFrame:

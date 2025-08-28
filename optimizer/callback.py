@@ -162,10 +162,9 @@ class SimCallback(CpSolverSolutionCallback):
     def _compute_raw_scores(self) -> None:
         """Retourne les scores bruts finaux sous forme de DataFrame."""
         if self.raw_metrics.empty:
-            self.log.info(Fore.YELLOW + "Aucun score brut calculé, DataFrame vide." + Fore.RESET)
-            return
-        if "score" in self.raw_metrics.columns:
-            return
+            self.log.info(Fore.YELLOW + "Aucun score calculé, DataFrame vide." + Fore.RESET)
+            raise ValueError("No scores computed, empty DataFrame.")
+
         self.raw_metrics["score"] = self.normalize.compute_score(self.norm_metrics)
 
     def best_raw_score(self) -> pd.Series:
