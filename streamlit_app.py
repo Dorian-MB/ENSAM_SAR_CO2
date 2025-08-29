@@ -10,9 +10,13 @@ from eco2_normandy import Simulation
 from eco2_normandy import Simulation
 from KPIS import Kpis
 from eco2_normandy.logger import Logger
+from eco2_normandy.tools import get_simlulation_variable
+from optimizer.boundaries import ConfigBoundaries
+from optimizer.utils import ConfigBuilderFromSolution
 
 logger = Logger()
-logging.basicConfig(level=logging.ERROR)
+boundaries = ConfigBoundaries()
+cfg_builder = ConfigBuilderFromSolution(None, boundaries)
 # Optional: Set the page to use the entire width
 st.set_page_config(layout="wide")
 st.logo(image=os.path.join("assets", "logo.png"), link="https://tnpconsultants.com/")
@@ -51,7 +55,6 @@ st.session_state.simulation_name = st.text_input("Nom de la simulation", value="
 with st.expander("General Inputs"):
     general = {
         "num_period_per_hours": st.number_input("Number of Periods per Hour", value=1.0),
-        "num_ships": st.number_input("Number of Ships", value=1),
         "num_period": st.number_input("Number of Periods", value=2000),
         "distances": {
             "Le Havre": {
@@ -62,190 +65,62 @@ with st.expander("General Inputs"):
     }
 
 
-weather_probability = {
-    "wind": 0.1,
-    "waves": 0.1,
-    "current": 0.1,
-}
+with st.expander("Factory"):
+    factory = {
+        "number_of_tanks": st.number_input("Number of Tanks", value=1, min_value=1),
+        "num_sources": st.number_input("Number of Sources", value=5, min_value=1),
+    }
+    annual_production_capacity = st.number_input("Annual Production Capacity (all sources)", value=570_000)
 
-kpis = {
-    "fuel_price_per_ton": 520,
-    "delay_penalty_per_hour": 200,
-    "co2_release_cost_per_ton": 0.1,
-    "storage_cost_per_m3": 30,
-}
+num_source = factory["num_sources"]
+factory["sources"] = [ { "name": f"Source {i+1}", 
+                        "annual_production_capacity": annual_production_capacity//num_source,
+                        "maintenance_rate":0.1,
+                        } for i in range(num_source) ]
 
-allowed_speeds = {
-    "wind": {"6": 12, "10": 10, "20": 0},
-    "wave": {"6": 12, "10": 10, "20": 0},
-    "current": {"6": 12, "10": 10, "20": 0},
-}
+with st.expander("Storages"):
+    storage = {
+        "num_storages": st.number_input("Number of Storages", value=1, min_value=1, max_value=2),
+        "storage_caps": st.number_input("Total Storage Capacity (m3)", value=10_000, min_value=10_000),
+        "use_Bergen": st.checkbox("Use Bergen as storage location", value=False),
+        'use_Rotterdam': st.checkbox("Use Rotterdam as storage location", value=True)
+    }
 
-
-# Manage dynamic items
-def manage_dynamic_section(section_name, section_state_key, default_item):
-    with st.expander(section_name):
-        if section_state_key not in st.session_state:
-            st.session_state[section_state_key] = [default_item.copy()]
-
-        for idx, item in enumerate(st.session_state[section_state_key]):
-            with st.container(key=f"{section_state_key}_{idx}"):
-                st.subheader(f"{section_name[:-1]} {idx + 1}")
-                col1, col2 = st.columns([5, 1])
-
-                with col1:
-                    for key, value in item.items():
-                        if isinstance(value, (float, int)):  # Handle numeric inputs
-                            st.session_state[section_state_key][idx][key] = st.number_input(
-                                f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
-                                value=value,
-                            )
-                        elif isinstance(value, str):  # Handle string inputs
-                            st.session_state[section_state_key][idx][key] = st.text_input(
-                                f"{section_name[:-1]} {idx + 1} - {key.capitalize()}",
-                                value=value,
-                            )
-                        elif isinstance(value, dict):  # Handle nested dictionaries
-                            with st.container():
-                                st.subheader(f"{key.capitalize()} Details")
-                                for sub_key, sub_value in value.items():
-                                    if isinstance(sub_value, (float, int)):  # Numeric sub-values
-                                        st.session_state[section_state_key][idx][key][sub_key] = st.number_input(
-                                            f"{section_name[:-1]} {idx + 1} - {key.capitalize()} - {sub_key.capitalize()}",
-                                            value=sub_value,
-                                        )
-                                    elif isinstance(sub_value, str):  # String sub-values
-                                        st.session_state[section_state_key][idx][key][sub_key] = st.text_input(
-                                            f"{section_name[:-1]} {idx + 1} - {key.capitalize()} - {sub_key.capitalize()}",
-                                            value=sub_value,
-                                        )
-
-                with col2:
-                    if len(st.session_state[section_state_key]) > 1 and st.button(
-                        f"❌", key=f"{section_name}_delete_{idx}"
-                    ):
-                        st.session_state[section_state_key].pop(idx)
-                        st.rerun()
-
-        if st.button(f"Add {section_name[:-1]}"):
-            st.session_state[section_state_key].append(default_item.copy())
-            st.rerun()
+map_ship_initial_destination = {"Le Havre": 0, "Rotterdam": 1, "Bergen": 2}
+map_ship_fixed_storage_destination = {"Rotterdam": 0, "Bergen": 1}
+with st.expander("Ships"):
+    ships = {
+        "num_ship": st.number_input("Number of Ships", value=1, min_value=1),
+        "ship_capacity": st.number_input("Ship Capacity (m3)", value=12_000, min_value=1_000),
+        "ship_speed": st.number_input("Ship Speed (knots)", value=12, min_value=1),
+    }
+    for i in range(ships["num_ship"]):
+        st.write(f"Ship {i + 1}")
+        ships = {
+            f"init{i+1}_destination": map_ship_initial_destination[st.selectbox(f"Select {i+1} Destination", options=["Le Havre", "Rotterdam", "Bergen"])],
+            f"fixed{i+1}_storage_destination": map_ship_fixed_storage_destination[st.selectbox(f"Select {i+1} Fixed Storage Destination", options=["Rotterdam", "Bergen"])],
+            **ships
+        }
 
 
-# Factories
-manage_dynamic_section(
-    "Factory",
-    "factory",
-    {
-        "name": "Le Havre",
-        "capacity_max": 10000.0,
-        "annual_production_capacity": 530000,
-        "production_rate": 60.5,
-        "maintenance_rate": 0.2,
-        "docks": 1,
-        "number_of_tanks": 4,
-        "cost_per_tank": 3500,
-        "pbs_to_dock": 2,
-        "scheduled_maintenance_period_major": 3,
-        "scheduled_maintenance_period_minor": 1.5,
-        "unscheduled_maintenance_prob": 0.01,
-        "pump_rate": 1000,
-        "pump_in_maintenance_rate": 500,
-        "loading_time": 3,
-        "weather_waiting_time": 1,
-        "pilot_waiting_time": 2,
-        "dock_waiting_time": 3.5,
-        "lock_waiting_time": 2,
-        "transit_time_to_dock": 5.3,
-        "transit_time_from_dock": 5.3,
-        "storage_cost_per_m3": 35,
-        "initial_capacity": 1,
-        "sources": [
-            {
-                "name": "source 1",
-                "annual_production_capacity": 600000,
-                "maintenance_rate": 0.1,
-            }
-        ],
-    },
-)
-
-# Storages
-manage_dynamic_section(
-    "Storages",
-    "storages",
-    {
-        "name": "Rotterdam",
-        "capacity_max": 1200,
-        "cost_per_tank": 5000,
-        "number_of_tanks": 1800000000,
-        "consumption_rate": 1000,
-        "maintenance_rate": 0.2,
-        "docks": 1,
-        "pbs_to_dock": 2,
-        "pump_rate": 10000,
-        "pump_in_maintenance_rate": 5000,
-        "lock_waiting_time": 0,
-        "unloading_time": 3,
-        "transit_time_to_dock": 3.3,
-        "transit_time_from_dock": 3.3,
-        "storage_cost_per_m3": 35,
-    },
-)
-
-# Ships
-manage_dynamic_section(
-    "Ships",
-    "ships",
-    {
-        "name": "Ship 1",
-        "capacity_max": 1200.0,
-        "speed_max": 15.0,
-        "init": {
-            "state": "DOCKED",
-            "destination": "Le Havre",
-            "distance_to_go": 0,
-            "capacity": 0,
-        },
-        "immobilization_cost_per_hour": 45.0,
-        "staff_cost_per_hour": 130.0,
-        "usage_cost_per_hour": 300.0,
-        "ship_buying_cost": 1500000,
-        "fuel_consumption_per_day": 20,
-        "fixed_storage_destination": "Rotterdam",
-    },
-)
+config = get_simlulation_variable("scenarios/dev/phase3_bergen_18k_2boats.yaml")[0]
+config["general"].update(general)
+config["factory"].update(factory)
 
 
-# Combine all inputs
-simulation_variables = {
-    "general": general,
-    "weather_probability": weather_probability,
-    "KPIS": kpis,
-    "factory": st.session_state.factory[0],
-    "storages": st.session_state.storages,
-    "ships": st.session_state.ships,
-    "allowed_speeds": allowed_speeds,
-}
-
-simulation = Simulation(config=simulation_variables)
+solution = {**factory, **storage, **ships}
+cfg_builder.base_config = config
+sim_config = cfg_builder.build(solution)
+simulation = Simulation(config=sim_config)
 
 # Validation before simulation
 if st.button("Simulate", disabled=st.session_state.get("simulation_state", None) == "running"):
-    # Check if conditions are met before running the simulation
-    if len(st.session_state.factory) < 1:
-        st.error("You must have one factory.")
-    elif len(st.session_state.storages) < 1:
-        st.error("You must have at least one storage.")
-    elif len(st.session_state.ships) < 1:
-        st.error("You must have at least one ship.")
-    else:
-        st.session_state.plots = []
+    st.session_state.plots = []
 
-        st.session_state.started_at = time.time()
-        st.session_state.done_at = None
-        st.session_state.simulation_state = "running"
-        st.rerun()
+    st.session_state.started_at = time.time()
+    st.session_state.done_at = None
+    st.session_state.simulation_state = "running"
+    st.rerun()
 
 
 def launch_pygame_animation(config):
@@ -257,7 +132,7 @@ if st.button(
     disabled=st.session_state.get("pygame_running", "") == "running",
 ):
     st.session_state.pygame_running = "running"
-    process = multiprocessing.Process(target=launch_pygame_animation, args=(simulation_variables,))
+    process = multiprocessing.Process(target=launch_pygame_animation, args=(sim_config,))
     process.start()
     st.success("Animation lancer !")
     st.session_state.pygame_process = process
@@ -290,7 +165,7 @@ if st.session_state.get("simulation_state", None) == "running":
     simulation.run()
     generator = Kpis(
         simulation.result,
-        config=simulation_variables,
+        config=sim_config,
     )
 
     plots = []
@@ -301,7 +176,7 @@ if st.session_state.get("simulation_state", None) == "running":
     plots.append(generator.plot_waiting_time_evolution())
     plots.append(generator.plot_co2_transportation())
     plots.append(generator.plot_cost_kpis_table())
-    plots.append(generator.plot_metric_kpis_table()) #todo: fix error
+    plots.append(generator.plot_metric_kpis_table())
 
     st.session_state.plots = plots
     st.session_state.simulation_state = "done"
