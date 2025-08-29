@@ -87,6 +87,7 @@ class KpisGraphsGenerator:
             }
 
             for _, l in data.items():
+                state = str(l.get("state"))
                 if init_new_trip:
                     trip = {
                         "DOCKED": 0,
@@ -97,15 +98,14 @@ class KpisGraphsGenerator:
                         "UNLOADING": 0,
                     }
                     init_new_trip = False
-
-                trip[l.get("state")] += 1
-                if l.get("destination") == factory_name and l.get("state") == "DOCKED":
+                trip[state] += 1
+                if l.get("destination") == factory_name and state == "DOCKED":
                     trip["LOADING"] += 1
-                elif l.get("destination") in storage_names and l.get("state") == "DOCKED":
+                elif l.get("destination") in storage_names and state == "DOCKED":
                     trip["UNLOADING"] += 1
 
                 if (
-                    l.get("state") == "DOCKED"
+                    state == "DOCKED"
                     and l.get("destination") == factory_name
                     and l.get("capacity") in ["0", "0.0"]
                 ):
