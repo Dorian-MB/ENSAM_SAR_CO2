@@ -160,7 +160,7 @@ def get_all_scenarios(path: str, ignore_cte=False) -> Generator[tuple[Path, dict
                 config.pop(key, None)
         if path.is_file() and path.suffix == ".yaml":
             config["name"] = path.stem
-            if not ignore_cte: 
+            if not ignore_cte:
                 config["general"]["num_period"] = 2_000
             yield path, config
 

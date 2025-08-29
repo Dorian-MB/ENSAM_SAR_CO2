@@ -16,6 +16,7 @@ from KPIS.utils import to_MultiIndex_dfs
 
 pio.templates.default = "ggplot2"
 
+
 class Kpis:
     def __init__(self, simulation_df, config, logger=None):
         self.config = config
@@ -132,14 +133,14 @@ class Kpis:
     def wasted_production_over_time(self):
         return self.dfs[self.factory_name]["wasted_production"].cumsum()
 
-    def get_waiting_time_dfs(self, waiting_states = ["DOCKED", "WAITING"]):
+    def get_waiting_time_dfs(self, waiting_states=["DOCKED", "WAITING"]):
         return self._get_states_to_dfs(waiting_states)
 
     def get_total_waiting_time(self):
         dfs = self.get_waiting_time_dfs()
         return dfs.sum().sum()
 
-    def get_navigating_time_dfs(self, navigation_states = ["NAVIGATING"]):
+    def get_navigating_time_dfs(self, navigation_states=["NAVIGATING"]):
         return self._get_states_to_dfs(navigation_states)
 
     def get_total_navigating_time(self):
@@ -163,9 +164,9 @@ class Kpis:
         tank_total_cost_in_factory = num_factory_tanks * cost_per_tank * scale_ratio
 
         initial_row_ship = ships_df[self.ship_names[0]].iloc[0]
-        total_ships_buying_costs = self.safe_float_conversion(
-            initial_row_ship["ship_buying_cost"]
-        ) * self.config["general"]["number_of_ships"]
+        total_ships_buying_costs = (
+            self.safe_float_conversion(initial_row_ship["ship_buying_cost"]) * self.config["general"]["number_of_ships"]
+        )
 
         initial_investment = {
             "Storage Tank Purchase Cost": tank_total_cost_in_factory,
@@ -244,7 +245,7 @@ class Kpis:
         kpis["Combined Total Cost"] = combined_total_cost
 
         return kpis
-    
+
     def plot_factory_capacity_evolution(self):
         factory_df = self.dfs[self.factory_name]
         capacity_max = self.config["factory"]["capacity_max"]
@@ -260,7 +261,7 @@ class Kpis:
         fig.add_trace(
             go.Scatter(
                 x=[factory_df.index.min(), factory_df.index.max()],
-                y=[capacity_max]*2,
+                y=[capacity_max] * 2,
                 mode="lines",
                 name="Capacity max",
                 line=dict(color="black", dash="dash"),  # Black dashed line
@@ -275,7 +276,7 @@ class Kpis:
             xanchor="left",
             yanchor="bottom",
         )
-        
+
         fig.update_layout(
             title="Evolution of CO2 Storage in Factory",
         )
@@ -284,39 +285,39 @@ class Kpis:
         fig.update_layout(
             template="ggplot2",
             yaxis_title=f"Le Havre capacity (Tons of CO2)",
-            showlegend=False, 
+            showlegend=False,
         )
 
         return fig
 
     def plot_factory_capacity_evolution_violin(self):
         factory_df = self.dfs[self.factory_name]
-        
+
         fig = px.violin(
             y=factory_df["capacity"],
             box=True,  # Show the box plot inside the violin
             points="outliers",  # Show outliers
             title="Distribution of CO2 Storage in Factory",
         )
-        
+
         fig.update_layout(
             template="ggplot2",
             yaxis_title="Factory Capacity (Tons of CO2)",
             xaxis_title="",
             showlegend=False,
         )
-        
+
         return fig
 
     def plot_storage_capacity_comparison(self):
         factory_df = self.dfs[self.factory_name]
-        
+
         capa_equals_max = (factory_df["capacity"] == factory_df["capacity_max"]).sum()
         capa_less_than_max = len(factory_df) - capa_equals_max
-        
+
         categories = ["capacity == capacity_max", "capacity < capacity_max"]
         values = [capa_equals_max, capa_less_than_max]
-        
+
         fig = go.Figure(
             data=[
                 go.Bar(
@@ -328,7 +329,7 @@ class Kpis:
                 )
             ]
         )
-        
+
         fig.update_layout(
             template="ggplot2",
             title="Total Hours by Storage Capacity Conditions in Factory",
@@ -337,12 +338,12 @@ class Kpis:
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
             xaxis=dict(showgrid=False),
         )
-        
+
         return fig
 
     def plot_factory_wasted_production_over_time(self):
         wasted_cumsum = self.wasted_production_over_time()
-        
+
         fig = go.Figure(
             data=[
                 go.Scatter(
@@ -354,7 +355,7 @@ class Kpis:
                 )
             ]
         )
-        
+
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Cumulative Wasted Production Over Time",
@@ -364,19 +365,19 @@ class Kpis:
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
             showlegend=False,
         )
-        
+
         return fig
 
     def plot_travel_duration_evolution(self):
         fig = go.Figure()
-        
+
         # Extract navigation durations from the trips dataframe
         for ship_name in self.ship_names:
             if ship_name in self.get_lvl_0_index(self.trips):
                 # Get navigation times per trip for this ship
                 ship_nav_data = self.trips[ship_name]["NAVIGATING"]
                 nav_durations = ship_nav_data[ship_nav_data > 0]
-                
+
                 if len(nav_durations) > 0:
                     fig.add_trace(
                         go.Scatter(
@@ -386,7 +387,7 @@ class Kpis:
                             name=ship_name,
                         )
                     )
-        
+
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Ships' Journey Times",
@@ -396,19 +397,19 @@ class Kpis:
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
             legend_title="Ships",
         )
-        
+
         return fig
 
     def plot_waiting_time_evolution(self, waiting_states: list[str] = ["WAITING", "DOCKED"]):
         fig = go.Figure()
-        
-        # Extract waiting times from the trips dataframe  
+
+        # Extract waiting times from the trips dataframe
         for ship_name in self.ship_names:
             if ship_name in self.trips.columns.get_level_values(0):
                 waiting_times = sum(self.trips[ship_name][state] for state in waiting_states)
                 # Filter out zero values
                 waiting_times = waiting_times[waiting_times > 0]
-                
+
                 if len(waiting_times) > 0:
                     fig.add_trace(
                         go.Scatter(
@@ -418,7 +419,7 @@ class Kpis:
                             name=ship_name,
                         )
                     )
-        
+
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Ships' Waiting Times",
@@ -428,13 +429,13 @@ class Kpis:
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
             legend_title="Ships",
         )
-        
+
         return fig
 
     def plot_co2_transportation(self, combine_ships: bool = False):
         ship_capacities = {ship["name"]: ship["capacity_max"] for ship in self.config["ships"]}
-        
-        # Calculate total CO2 as percentage across all ships 
+
+        # Calculate total CO2 as percentage across all ships
         fig = go.Figure()
         ships_transportation = []
         for ship_name in self.ship_names:
@@ -443,7 +444,7 @@ class Kpis:
             ship_max_capacity = ship_capacities[ship_name]
             total_capacity_pct = (ship_df["capacity"] / ship_max_capacity) * 100
             ships_transportation.append(total_capacity_pct)
-        
+
         for i, ship_name in enumerate(self.ship_names):
             if combine_ships:
                 transportation = sum(ships_transportation)
@@ -459,7 +460,7 @@ class Kpis:
             )
             if combine_ships:
                 break
-        
+
         fig.update_layout(
             template="ggplot2",
             title="Total CO2 Transported by Ships Over Time",
@@ -470,7 +471,7 @@ class Kpis:
             showlegend=not combine_ships,
             legend_title="Ships",
         )
-        
+
         return fig
 
     @staticmethod
@@ -490,7 +491,7 @@ class Kpis:
         initial_investment = kpis["Initial Investment"]
         functional_costs = kpis["Functional Costs"]
         combined_cost = kpis["Combined Total Cost"]
-        
+
         # Data for Initial Investment table
         initial_investment_data = [
             [
@@ -504,7 +505,7 @@ class Kpis:
                 self._format_costs(initial_investment["Boat Purchase Cost"]),
             ],
         ]
-        
+
         # Data for Functional Costs table
         functional_costs_data = [
             [
@@ -538,7 +539,7 @@ class Kpis:
                 self._format_costs(functional_costs["Total Cost"]),
             ],
         ]
-        
+
         # Combined cost data
         combined_cost_data = [
             [
@@ -547,21 +548,14 @@ class Kpis:
                 self._format_costs(combined_cost),
             ]
         ]
-        
+
         # Create DataFrames
         initial_investment_df = pd.DataFrame(
-            initial_investment_data, 
-            columns=["INITIAL INVESTMENT", "FORMULA", "VALUE"]
+            initial_investment_data, columns=["INITIAL INVESTMENT", "FORMULA", "VALUE"]
         )
-        functional_costs_df = pd.DataFrame(
-            functional_costs_data, 
-            columns=["FUNCTIONAL COST", "FORMULA", "VALUE"]
-        )
-        combined_cost_df = pd.DataFrame(
-            combined_cost_data, 
-            columns=["COMBINED COST", "FORMULA", "VALUE"]
-        )
-        
+        functional_costs_df = pd.DataFrame(functional_costs_data, columns=["FUNCTIONAL COST", "FORMULA", "VALUE"])
+        combined_cost_df = pd.DataFrame(combined_cost_data, columns=["COMBINED COST", "FORMULA", "VALUE"])
+
         # Create subplots for tables
         fig = make_subplots(
             rows=3,
@@ -571,7 +565,7 @@ class Kpis:
             row_heights=[0.2, 0.66, 0.2],
             specs=[[{"type": "table"}], [{"type": "table"}], [{"type": "table"}]],
         )
-        
+
         # Table 1: Initial Investment
         fig.add_trace(
             go.Table(
@@ -589,7 +583,7 @@ class Kpis:
             row=1,
             col=1,
         )
-        
+
         # Table 2: Functional Costs
         fig.add_trace(
             go.Table(
@@ -607,7 +601,7 @@ class Kpis:
             row=2,
             col=1,
         )
-        
+
         # Table 3: Combined Costs
         fig.add_trace(
             go.Table(
@@ -625,7 +619,7 @@ class Kpis:
             row=3,
             col=1,
         )
-        
+
         # Update layout
         fig.update_layout(
             template="ggplot2",
@@ -633,46 +627,44 @@ class Kpis:
             height=800,
             showlegend=False,
         )
-        
+
         return fig
 
     def plot_metric_kpis_table(self):
         factory_df = self.dfs[self.factory_name]
-        
+
         # Calculate metrics
         co2_vented_quantity = self.wasted_production()
-        
+
         # CO2 transported quantity (from last state of storages) - vectorized
         co2_transported_quantity = sum(
-            self.dfs[storage_name]["received_co2_over_time"].iloc[-1] 
-            for storage_name in self.storage_names
+            self.dfs[storage_name]["received_co2_over_time"].iloc[-1] for storage_name in self.storage_names
         )
-        
+
         # Calculate average travel and waiting times using the trip analysis - vectorized
         trips_sum = self.trips.sum()
-        
+
         # Use pandas operations for faster calculations
         total_navigation_time = sum(trips_sum.get((ship, "NAVIGATING"), 0) for ship in self.ship_names)
         total_waiting_time = sum(
-            trips_sum.get((ship, "WAITING"), 0) + trips_sum.get((ship, "DOCKED"), 0) 
-            for ship in self.ship_names
+            trips_sum.get((ship, "WAITING"), 0) + trips_sum.get((ship, "DOCKED"), 0) for ship in self.ship_names
         )
-        
+
         # Convert to hours (assuming periods are in hours)
         average_travel_duration = total_navigation_time / len(self.ship_names) if self.ship_names else 0
         average_waiting_time = total_waiting_time / len(self.ship_names) if self.ship_names else 0
-        
+
         # Time tank full vs not full - use pandas vectorized operations
         time_tank_full = (factory_df["capacity"] >= factory_df["capacity_max"]).sum()
         time_tank_not_full = len(factory_df) - time_tank_full
-        
+
         # Calculate percentages
         total_time = time_tank_full + time_tank_not_full
         percentage_time_tank_full = (time_tank_full / total_time * 100) if total_time > 0 else 0
-        
+
         total_co2 = co2_vented_quantity + co2_transported_quantity
         percentage_co2_vented = (co2_vented_quantity / total_co2 * 100) if total_co2 > 0 else 0
-        
+
         # Create metrics table
         metrics_data = [
             [
@@ -692,14 +684,14 @@ class Kpis:
                 f"{self._format_time(time_tank_not_full)} ({100 - percentage_time_tank_full:.2f} %)",
             ],
         ]
-        
+
         # Create figure
         fig = make_subplots(
             rows=1,
             cols=1,
             specs=[[{"type": "table"}]],
         )
-        
+
         fig.add_trace(
             go.Table(
                 header=dict(
@@ -716,14 +708,12 @@ class Kpis:
             row=1,
             col=1,
         )
-        
+
         fig.update_layout(
             template="ggplot2",
             title="KPIs Table: Metrics Overview",
             height=800,
             showlegend=False,
         )
-        
+
         return fig
- 
- 
