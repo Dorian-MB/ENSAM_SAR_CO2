@@ -67,8 +67,9 @@ with st.expander("General Inputs"):
 
 with st.expander("Factory"):
     factory = {
-        "number_of_tanks": st.number_input("Number of Tanks", value=1, min_value=1),
+        "number_of_tanks": st.number_input("Number of Tanks", value=3, min_value=1),
         "num_sources": st.number_input("Number of Sources", value=5, min_value=1),
+        "initial_capacity": 0
     }
     annual_production_capacity = st.number_input("Annual Production Capacity (all sources)", value=570_000)
 
@@ -179,7 +180,7 @@ if st.session_state.get("simulation_state", None) == "running":
     plots = []
     plots.append(generator.plot_factory_capacity_evolution())
     plots.append(generator.plot_factory_capacity_evolution_violin())
-    plots.append(generator.plot_co2_transportation())
+    plots.append(generator.plot_co2_transportation(combine_ships=True))
     plots.append(generator.plot_storage_capacity_comparison())
     plots.append(generator.plot_factory_wasted_production_over_time())
     plots.append(generator.plot_travel_duration_evolution())
