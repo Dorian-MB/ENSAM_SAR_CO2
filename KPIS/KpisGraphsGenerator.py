@@ -31,7 +31,7 @@ class KpisGraphsGenerator:
 
     def __init__(
         self,
-        simulation_df,
+        simulation,
         config,
         storage_columns=["storage"],
         factory_column="factory",
@@ -42,7 +42,10 @@ class KpisGraphsGenerator:
         self.show_tables = show_tables
         self.config = config
         self.output_excels = output_excels
-        self.df = simulation_df
+        factory = simulation.factory
+        storages = simulation.storages
+        ships = simulation.ships
+        self.df = data_to_dataframe(factory, storages, ships)
         self.output_folder = os.path.join(
             "KPIS",
             "generated_graphs",
@@ -64,7 +67,7 @@ class KpisGraphsGenerator:
         self.ship_columns = self.df.columns[len(storage_columns) + 2 :].tolist()  # All columns after 'storage'
 
         self.kpis = config["KPIS"]
-        # self._trip_analysis()
+        self._trip_analysis()
 
     def _trip_analysis(self):
         ships = [s["name"] for s in self.config["ships"]]
@@ -223,7 +226,7 @@ class KpisGraphsGenerator:
         plt.legend()
         plt.show()
 
-    def plot_factory_capacity_evolution(self, return_html=True):
+    def plot_factory_capacity_evolution(self, return_html=False):
         title = f"{self.factory_column} Capacity"
 
         # Extract storage capacity
@@ -303,7 +306,7 @@ class KpisGraphsGenerator:
         else:
             return fig
 
-    def plot_factory_capacity_evolution_violin(self, return_html=True):
+    def plot_factory_capacity_evolution_violin(self, return_html=False):
         title = f"{self.factory_column} Capacity"
 
         # Extract storage capacity
@@ -348,7 +351,7 @@ class KpisGraphsGenerator:
 
         # Pass plot_html to your template for rendering
 
-    def plot_travel_duration_evolution(self, return_html=True):
+    def plot_travel_duration_evolution(self, return_html=False):
         # Function to calculate the duration of travel for each ship based on the navigation states
         def calculate_navigation_durations(df, ship_column):
             durations = []
@@ -483,7 +486,7 @@ class KpisGraphsGenerator:
 
         return waiting_durations
 
-    def plot_waiting_time_evolution(self, return_html=True):
+    def plot_waiting_time_evolution(self, return_html=False):
         # Prepare lists to store the data for Excel
         self.waiting_data = []
         all_ship_waiting_times = {}
@@ -570,7 +573,7 @@ class KpisGraphsGenerator:
 
         return steps, total_co2
 
-    def plot_co2_transportation(self, return_html=True):
+    def plot_co2_transportation(self, return_html=False):
         # Calculate total CO2 transported over time
         steps, total_co2 = self.calculate_total_co2()
 
@@ -618,7 +621,7 @@ class KpisGraphsGenerator:
         else:
             return fig1
 
-    def plot_storage_capacity_comparison(self, return_html=True):
+    def plot_storage_capacity_comparison(self, return_html=False):
         # Initialize variables to track the total hours for each condition
         total_hours_capacity_max_equals_capacity = 0
         total_hours_capacity_max_greater_than_capacity = 0
@@ -716,7 +719,7 @@ class KpisGraphsGenerator:
         else:
             return fig1
 
-    def plot_factory_wasted_production_over_time(self, return_html=True):
+    def plot_factory_wasted_production_over_time(self, return_html=False):
         # Extract the 'wasted_production' values and the corresponding 'step' values
         wasted_production = []
         time_steps = []
@@ -870,7 +873,7 @@ class KpisGraphsGenerator:
 
         return initial_investment, functional_costs, combined_cost
 
-    def plot_cost_kpis_table(self, return_html=True):
+    def plot_cost_kpis_table(self, return_html=False):
         # Data for the first table (Investissement de Départ)
         initial_investment, functional_costs, combined_cost = self.calculate_functional_kpis()
 
@@ -1029,7 +1032,7 @@ class KpisGraphsGenerator:
         else:
             return fig
 
-    def plot_metric_kpis_table(self, return_html=True):
+    def plot_metric_kpis_table(self, return_html=False):
         co2_vented_quantity = sum([i.get("wasted_production", 0) for i in self.df[self.factory_column]])
         co2_transported_quantity = sum(
             [
@@ -1077,8 +1080,10 @@ class KpisGraphsGenerator:
                                 "Time storage are not full (hours)",
                             ],
                             [
-                                self._format_time(average_travel_duration),
-                                self._format_time(average_waiting_time),
+                                # self._format_time(average_travel_duration),
+                                average_travel_duration,
+                                # self._format_time(average_waiting_time),
+                                average_waiting_time,
                                 f"{self._format_quantity(co2_vented_quantity)} ({percentage_co2_vented:,.2f} %)",
                                 f"{self._format_quantity(co2_transported_quantity)} ({100 - percentage_co2_vented:,.2f} %)",
                                 f"{self._format_time(time_tank_full)} ({percentage_time_tank_full:,.2f} %)",
