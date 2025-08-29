@@ -170,11 +170,12 @@ if st.session_state.get("simulation_state", None) == "running":
 
     plots = []
     plots.append(generator.plot_factory_capacity_evolution())
+    plots.append(generator.plot_factory_capacity_evolution_violin())
+    plots.append(generator.plot_co2_transportation())
     plots.append(generator.plot_storage_capacity_comparison())
     plots.append(generator.plot_factory_wasted_production_over_time())
     plots.append(generator.plot_travel_duration_evolution())
     plots.append(generator.plot_waiting_time_evolution())
-    plots.append(generator.plot_co2_transportation())
     plots.append(generator.plot_cost_kpis_table())
     plots.append(generator.plot_metric_kpis_table())
 

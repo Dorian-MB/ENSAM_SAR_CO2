@@ -286,6 +286,27 @@ class Kpis:
 
         return fig
 
+    def plot_factory_capacity_evolution_violin(self):
+        factory_df = self.dfs[self.factory_name]
+        
+        # Create a violin plot using plotly express
+        fig = px.violin(
+            y=factory_df["capacity"],
+            box=True,  # Show the box plot inside the violin
+            points="outliers",  # Show outliers
+            title="Distribution of CO2 Storage in Factory",
+        )
+        
+        # Customize layout
+        fig.update_layout(
+            template="ggplot2",
+            yaxis_title="Factory Capacity (Tons of CO2)",
+            xaxis_title="",
+            showlegend=False,
+        )
+        
+        return fig
+
     def plot_storage_capacity_comparison(self):
         factory_df = self.dfs[self.factory_name]
         
