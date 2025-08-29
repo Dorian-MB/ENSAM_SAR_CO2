@@ -70,7 +70,12 @@ class Kpis:
             ships_states[s] = state_df
         return self._to_MultiIndex_dfs(ships_states)
 
-    def _trip_analysis(self):
+    def _trip_analysis(self) -> pd.DataFrame:
+        """Analyze trips data for each ship. 1 trip is consider each time a ship leaves factory.
+
+        Returns:
+            pd.DataFrame: DataFrame containing trip analysis results.
+        """
         ships = [s["name"] for s in self.config["ships"]]
 
         all_trips = {}
@@ -141,7 +146,6 @@ class Kpis:
         dfs = self.get_navigating_time_dfs()
         return dfs.sum().sum()
 
-    # New version of calculate_functional_kpis using MultiIndex DataFrame
     def calculate_functional_kpis(self):
         """
         Calculate KPIs based on the simulation dataframe.
@@ -262,7 +266,6 @@ class Kpis:
                 line=dict(color="black", dash="dash"),  # Black dashed line
             )
         )
-                # Add an annotation for the max capacity line
         fig.add_annotation(
             x=factory_df.index.max(),  # Position the annotation at the end of the x-axis
             y=capacity_max,  # Align with the maximum capacity value
@@ -289,7 +292,6 @@ class Kpis:
     def plot_factory_capacity_evolution_violin(self):
         factory_df = self.dfs[self.factory_name]
         
-        # Create a violin plot using plotly express
         fig = px.violin(
             y=factory_df["capacity"],
             box=True,  # Show the box plot inside the violin
@@ -297,7 +299,6 @@ class Kpis:
             title="Distribution of CO2 Storage in Factory",
         )
         
-        # Customize layout
         fig.update_layout(
             template="ggplot2",
             yaxis_title="Factory Capacity (Tons of CO2)",
@@ -313,11 +314,9 @@ class Kpis:
         capa_equals_max = (factory_df["capacity"] == factory_df["capacity_max"]).sum()
         capa_less_than_max = len(factory_df) - capa_equals_max
         
-        # Prepare data for the bar chart
         categories = ["capacity == capacity_max", "capacity < capacity_max"]
         values = [capa_equals_max, capa_less_than_max]
         
-        # Create a Plotly bar chart
         fig = go.Figure(
             data=[
                 go.Bar(
@@ -330,7 +329,6 @@ class Kpis:
             ]
         )
         
-        # Add labels and title
         fig.update_layout(
             template="ggplot2",
             title="Total Hours by Storage Capacity Conditions in Factory",
@@ -343,10 +341,8 @@ class Kpis:
         return fig
 
     def plot_factory_wasted_production_over_time(self):
-        # Use the existing method for cumulative sum
         wasted_cumsum = self.wasted_production_over_time()
         
-        # Create a Plotly line plot
         fig = go.Figure(
             data=[
                 go.Scatter(
@@ -359,7 +355,6 @@ class Kpis:
             ]
         )
         
-        # Add labels and title
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Cumulative Wasted Production Over Time",
@@ -373,15 +368,13 @@ class Kpis:
         return fig
 
     def plot_travel_duration_evolution(self):
-        # Use the existing trips data instead of recalculating
         fig = go.Figure()
         
         # Extract navigation durations from the trips dataframe
         for ship_name in self.ship_names:
-            if ship_name in self.trips.columns.get_level_values(0):
+            if ship_name in self.get_lvl_0_index(self.trips):
                 # Get navigation times per trip for this ship
                 ship_nav_data = self.trips[ship_name]["NAVIGATING"]
-                # Filter out zero values (trips without navigation)
                 nav_durations = ship_nav_data[ship_nav_data > 0]
                 
                 if len(nav_durations) > 0:
@@ -394,7 +387,6 @@ class Kpis:
                         )
                     )
         
-        # Customize layout
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Ships' Journey Times",
@@ -407,15 +399,13 @@ class Kpis:
         
         return fig
 
-    def plot_waiting_time_evolution(self):
-        # Use the existing trips data for waiting times
+    def plot_waiting_time_evolution(self, waiting_states: list[str] = ["WAITING", "DOCKED"]):
         fig = go.Figure()
         
         # Extract waiting times from the trips dataframe  
         for ship_name in self.ship_names:
             if ship_name in self.trips.columns.get_level_values(0):
-                # Combine WAITING and DOCKED states as waiting time
-                waiting_times = (self.trips[ship_name]["WAITING"] + self.trips[ship_name]["DOCKED"])
+                waiting_times = sum(self.trips[ship_name][state] for state in waiting_states)
                 # Filter out zero values
                 waiting_times = waiting_times[waiting_times > 0]
                 
@@ -429,7 +419,6 @@ class Kpis:
                         )
                     )
         
-        # Customize layout
         fig.update_layout(
             template="ggplot2",
             title="Evolution of Ships' Waiting Times",
@@ -442,35 +431,35 @@ class Kpis:
         
         return fig
 
-    def plot_co2_transportation(self):
-        # Use pandas operations for efficiency
+    def plot_co2_transportation(self, combine_ships: bool = False):
         ship_capacities = {ship["name"]: ship["capacity_max"] for ship in self.config["ships"]}
         
-        # Calculate total CO2 as percentage across all ships for each timestep
-        total_capacity_pct = pd.Series(0.0, index=self.dfs[self.ship_names[0]].index)
-        
-        for ship_name in self.ship_names:
-            ship_df = self.dfs[ship_name]
-            ship_max_capacity = ship_capacities.get(ship_name, 1)
-            # Vectorized calculation
-            capacity_pct = (ship_df["capacity"] / ship_max_capacity) * 100
-            total_capacity_pct += capacity_pct
-        
-        # Create Plotly figure
+        # Calculate total CO2 as percentage across all ships 
         fig = go.Figure()
+        ships_transportation = []
+        for ship_name in self.ship_names:
+            total_capacity_pct = pd.Series(0.0, index=self.dfs[self.ship_names[0]].index)
+            ship_df = self.dfs[ship_name]
+            ship_max_capacity = ship_capacities[ship_name]
+            total_capacity_pct = (ship_df["capacity"] / ship_max_capacity) * 100
+            ships_transportation.append(total_capacity_pct)
         
-        # Add line for total CO2 transported
-        fig.add_trace(
-            go.Scatter(
-                x=total_capacity_pct.index,
-                y=total_capacity_pct,
-                mode="lines",
-                name="Total CO2 Transported",
-                line=dict(color="blue"),
+        for i, ship_name in enumerate(self.ship_names):
+            if combine_ships:
+                transportation = sum(ships_transportation)
+            else:
+                transportation = ships_transportation[i]
+            fig.add_trace(
+                go.Scatter(
+                    x=transportation.index,
+                    y=transportation,
+                    mode="lines+markers",
+                    name=f"{ship_name} Total CO2 Transported",
+                )
             )
-        )
+            if combine_ships:
+                break
         
-        # Customize layout
         fig.update_layout(
             template="ggplot2",
             title="Total CO2 Transported by Ships Over Time",
@@ -478,7 +467,8 @@ class Kpis:
             yaxis_title="Total CO2 Transported (% of ship capacity)",
             xaxis=dict(showgrid=True),
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
-            showlegend=False,
+            showlegend=not combine_ships,
+            legend_title="Ships",
         )
         
         return fig
@@ -496,7 +486,6 @@ class Kpis:
         return "{:d} Tons".format(round(val))
 
     def plot_cost_kpis_table(self):
-        # Get KPIs from the existing calculation method
         kpis = self.calculate_functional_kpis()
         initial_investment = kpis["Initial Investment"]
         functional_costs = kpis["Functional Costs"]
