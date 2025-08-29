@@ -271,7 +271,7 @@ class OptimizationOrchestrator:
     def scores_per_phases(self):
         if self.history == {}:
             raise ValueError("No scores computed, empty history.")
-        return {phase:history["scores"]["score"] for phase, history in self.history.items()}
+        return {phase: history["scores"]["score"] for phase, history in self.history.items()}
 
     def log_score(self) -> None:
         """

@@ -73,17 +73,21 @@ with st.expander("Factory"):
     annual_production_capacity = st.number_input("Annual Production Capacity (all sources)", value=570_000)
 
 num_source = factory["num_sources"]
-factory["sources"] = [ { "name": f"Source {i+1}", 
-                        "annual_production_capacity": annual_production_capacity//num_source,
-                        "maintenance_rate":0.1,
-                        } for i in range(num_source) ]
+factory["sources"] = [
+    {
+        "name": f"Source {i + 1}",
+        "annual_production_capacity": annual_production_capacity // num_source,
+        "maintenance_rate": 0.1,
+    }
+    for i in range(num_source)
+]
 
 with st.expander("Storages"):
     storage = {
         "num_storages": st.number_input("Number of Storages", value=1, min_value=1, max_value=2),
         "storage_caps": st.number_input("Total Storage Capacity (m3)", value=10_000, min_value=10_000),
         "use_Bergen": st.checkbox("Use Bergen as storage location", value=False),
-        'use_Rotterdam': st.checkbox("Use Rotterdam as storage location", value=True)
+        "use_Rotterdam": st.checkbox("Use Rotterdam as storage location", value=True),
     }
 
 map_ship_initial_destination = {"Le Havre": 0, "Rotterdam": 1, "Bergen": 2}
@@ -97,9 +101,13 @@ with st.expander("Ships"):
     for i in range(ships["num_ship"]):
         st.write(f"Ship {i + 1}")
         ships = {
-            f"init{i+1}_destination": map_ship_initial_destination[st.selectbox(f"Select {i+1} Destination", options=["Le Havre", "Rotterdam", "Bergen"])],
-            f"fixed{i+1}_storage_destination": map_ship_fixed_storage_destination[st.selectbox(f"Select {i+1} Fixed Storage Destination", options=["Rotterdam", "Bergen"])],
-            **ships
+            f"init{i + 1}_destination": map_ship_initial_destination[
+                st.selectbox(f"Select {i + 1} Destination", options=["Le Havre", "Rotterdam", "Bergen"])
+            ],
+            f"fixed{i + 1}_storage_destination": map_ship_fixed_storage_destination[
+                st.selectbox(f"Select {i + 1} Fixed Storage Destination", options=["Rotterdam", "Bergen"])
+            ],
+            **ships,
         }
 
 
