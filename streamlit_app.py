@@ -6,9 +6,9 @@ import logging
 import streamlit as st
 
 from GUI import PGAnime
-from eco2_normandy.test import Simulation
 from eco2_normandy import Simulation
-from KPIS import KpisGraphsGenerator
+from eco2_normandy import Simulation
+from KPIS import Kpis
 from eco2_normandy.logger import Logger
 
 logger = Logger()
@@ -55,8 +55,8 @@ with st.expander("General Inputs"):
         "num_period": st.number_input("Number of Periods", value=2000),
         "distances": {
             "Le Havre": {
-                "Rotterdam": st.number_input("Distance: Le Havre to Rotterdam", value=263.0),
-                "Bergen": st.number_input("Distance: Le Havre to Bergen", value=739.0),
+                "Rotterdam": 263.0,
+                "Bergen": 739.0,
             }
         },
     }
@@ -288,22 +288,20 @@ if st.session_state.get("pygame_running") == "running":
 if st.session_state.get("simulation_state", None) == "running":
     st.info("Simulation started...")
     simulation.run()
-    generator = KpisGraphsGenerator(
-        simulation.results,
+    generator = Kpis(
+        simulation.result,
         config=simulation_variables,
-        factory_column=st.session_state.factory[0].get("name"),
-        storage_columns=[i["name"] for i in st.session_state.storages],
     )
 
     plots = []
-    plots.append(generator.plot_factory_capacity_evolution(return_html=False))
-    plots.append(generator.plot_storage_capacity_comparison(return_html=False))
-    plots.append(generator.plot_factory_wasted_production_over_time(return_html=False))
-    plots.append(generator.plot_travel_duration_evolution(return_html=False))
-    plots.append(generator.plot_waiting_time_evolution(return_html=False))
-    plots.append(generator.plot_co2_transportation(return_html=False))
-    plots.append(generator.plot_cost_kpis_table(return_html=False))
-    plots.append(generator.plot_metric_kpis_table(return_html=False))
+    plots.append(generator.plot_factory_capacity_evolution())
+    plots.append(generator.plot_storage_capacity_comparison())
+    plots.append(generator.plot_factory_wasted_production_over_time())
+    plots.append(generator.plot_travel_duration_evolution())
+    plots.append(generator.plot_waiting_time_evolution())
+    plots.append(generator.plot_co2_transportation())
+    plots.append(generator.plot_cost_kpis_table())
+    plots.append(generator.plot_metric_kpis_table()) #todo: fix error
 
     st.session_state.plots = plots
     st.session_state.simulation_state = "done"
