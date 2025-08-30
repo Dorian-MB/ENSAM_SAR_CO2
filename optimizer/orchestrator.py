@@ -11,6 +11,7 @@ import pandas as pd
 from colorama import Fore
 from typing import Generator
 
+from KPIS import Kpis
 from eco2_normandy.logger import Logger
 from optimizer.utils import (
     get_all_scenarios,
@@ -264,6 +265,7 @@ class OptimizationOrchestrator:
             self.history[phase] = {
                 "scores": self.model.best_score,
                 "solution": self.model.best_solution,
+                "kpis": self.get_kpis(),
             }
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
 
@@ -272,6 +274,14 @@ class OptimizationOrchestrator:
         if self.history == {}:
             raise ValueError("No scores computed, empty history.")
         return {phase: history["scores"]["score"] for phase, history in self.history.items()}
+
+    def get_kpis(self):
+        if self.model.istrain is False:
+            raise ValueError("model not trained yet, `Optimizer.optimize()`")
+        
+        sim, cfg = self.model.get_best_simulation()
+        kpis = Kpis(sim.result, cfg)
+        return kpis
 
     def log_score(self) -> None:
         """

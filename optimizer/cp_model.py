@@ -321,6 +321,13 @@ class CpModel(cp_model.CpModel):
             self.log.error(Fore.RED + f"An error occurred while running `{self.algorithm_name}`" + Fore.RESET)
             raise e
 
+    def get_best_simulation(self, num_period:int=2000) -> tuple[dict, dict]:
+        if self.istrain is False:
+            raise RuntimeError("No results available. Call solve() first.")
+        best_cfg = self.cfg_builder.build(self.best_solution, num_period=num_period)
+        sim = self.callback.run_simulation(best_cfg)
+        return sim, best_cfg
+
     def log_score(self) -> None:
         best_score = self.best_score
         if hasattr(self, "heuristic_sol"):

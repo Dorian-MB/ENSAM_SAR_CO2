@@ -62,10 +62,10 @@ class SimCallback(CpSolverSolutionCallback):
             sim.run()
         except Exception as e:
             if self.verbose > 2:
-                self.log.warning(Fore.RED + f"Simulation échouée pour la solution {self.evals}. {e}\n")
+                self.log.debug(Fore.RED + f"Simulation échouée pour la solution {self.evals}. {e}\n")
             if self.verbose >= 2:
-                self.log.warning(f"{cfg}" + Fore.RESET)
-            return None
+                self.log.debug(f"{cfg}" + Fore.RESET)
+            raise e
         return sim
 
     def _add_metrics_to_front(

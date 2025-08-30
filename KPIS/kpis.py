@@ -3,7 +3,6 @@ from pathlib import Path
 
 sys.path.append(str(Path.cwd()))
 
-import numpy as np
 import pandas as pd
 
 import plotly.graph_objects as go
@@ -18,7 +17,7 @@ pio.templates.default = "ggplot2"
 
 
 class Kpis:
-    def __init__(self, simulation_df, config, logger=None):
+    def __init__(self, simulation_df: dict[str, pd.DataFrame], config: dict[str, any], logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger or Logger()
         self.factory_name = self.config["factory"]["name"]
@@ -31,11 +30,11 @@ class Kpis:
         self.config["general"]["number_of_ships"] = len(self.config["ships"])
         self.trips = self._trip_analysis()
 
-    def get_non_numpy_sol(self, dic):
+    def get_non_numpy_sol(self, dic: dict[str, any]) -> dict[str, float]:
         return {k: float(v) for k, v in dic.items()}
 
     # TODO: look like not needed
-    def safe_float_conversion(self, val, default=0.0):
+    def safe_float_conversion(self, val: float | int | pd.Series, default: float = 0.0) -> float:
         """
         Safely convert a value to float, handling pandas Series from MultiIndex DataFrames.
 
@@ -51,19 +50,19 @@ class Kpis:
         else:
             return float(val)
 
-    def _to_MultiIndex_dfs(self, dic):
+    def _to_MultiIndex_dfs(self, dic: dict[str, any]) -> pd.DataFrame:
         return to_MultiIndex_dfs(dic)
 
-    def get_lvl_0_index(self, dfs):
+    def get_lvl_0_index(self, dfs: pd.DataFrame) -> pd.Index:
         return self._get_lvl_index(dfs, 0)
 
-    def get_lvl_1_index(self, dfs):
+    def get_lvl_1_index(self, dfs: pd.DataFrame) -> pd.Index:
         return self._get_lvl_index(dfs, 1)
 
-    def _get_lvl_index(self, dfs, n):
+    def _get_lvl_index(self, dfs: pd.DataFrame, n: int) -> pd.Index:
         return dfs.columns.get_level_values(n).unique()
 
-    def _get_states_to_dfs(self, states: list):
+    def _get_states_to_dfs(self, states: list[str]) -> pd.DataFrame:
         ships_states = {}
         for s in self.get_lvl_0_index(self.trips):
             df = self.trips[s].fillna(0)
@@ -112,13 +111,13 @@ class Kpis:
         self.trips.index = pd.Index([f"Trip {i + 1}" for i in range(len(self.trips))])
         return self.trips
 
-    def factory_filling_rate(self):
+    def factory_filling_rate(self) -> float:
         df = self.dfs[self.factory_name]
         capa_mean = df.capacity.mean()
         capa_max = df["capacity_max"].iloc[0]
         return capa_mean / capa_max
 
-    def storage_filling_rate(self):
+    def storage_filling_rate(self) -> float:
         storage_rates = {}
         for storage_name in self.storage_names:
             df = self.dfs[storage_name]
@@ -127,27 +126,27 @@ class Kpis:
             storage_rates[storage_name] = capa_mean / capa_max
         return pd.Series(storage_rates).mean()
 
-    def wasted_production(self):
+    def wasted_production(self) -> float:
         return self.dfs[self.factory_name]["wasted_production"].sum()
 
-    def wasted_production_over_time(self):
+    def wasted_production_over_time(self) -> pd.Series:
         return self.dfs[self.factory_name]["wasted_production"].cumsum()
 
-    def get_waiting_time_dfs(self, waiting_states=["DOCKED", "WAITING"]):
+    def get_waiting_time_dfs(self, waiting_states: list[str] = ["DOCKED", "WAITING"]) -> pd.DataFrame:
         return self._get_states_to_dfs(waiting_states)
 
-    def get_total_waiting_time(self):
+    def get_total_waiting_time(self) -> float:
         dfs = self.get_waiting_time_dfs()
         return dfs.sum().sum()
 
-    def get_navigating_time_dfs(self, navigation_states=["NAVIGATING"]):
+    def get_navigating_time_dfs(self, navigation_states: list[str] = ["NAVIGATING"]) -> pd.DataFrame:
         return self._get_states_to_dfs(navigation_states)
 
-    def get_total_navigating_time(self):
+    def get_total_navigating_time(self) -> float:
         dfs = self.get_navigating_time_dfs()
         return dfs.sum().sum()
 
-    def calculate_functional_kpis(self):
+    def calculate_functional_kpis(self) -> dict[str, any]:
         """
         Calculate KPIs based on the simulation dataframe.
         Returns a dictionary with the calculated KPIs.
@@ -246,7 +245,7 @@ class Kpis:
 
         return kpis
 
-    def plot_factory_capacity_evolution(self):
+    def plot_factory_capacity_evolution(self) -> go.Figure:
         factory_df = self.dfs[self.factory_name]
         capacity_max = self.config["factory"]["capacity_max"]
         fig = go.Figure()
@@ -290,7 +289,7 @@ class Kpis:
 
         return fig
 
-    def plot_factory_capacity_evolution_violin(self):
+    def plot_factory_capacity_evolution_violin(self) -> go.Figure:
         factory_df = self.dfs[self.factory_name]
 
         fig = px.violin(
@@ -309,7 +308,7 @@ class Kpis:
 
         return fig
 
-    def plot_storage_capacity_comparison(self):
+    def plot_storage_capacity_comparison(self) -> go.Figure:
         factory_df = self.dfs[self.factory_name]
 
         capa_equals_max = (factory_df["capacity"] == factory_df["capacity_max"]).sum()
@@ -341,7 +340,7 @@ class Kpis:
 
         return fig
 
-    def plot_factory_wasted_production_over_time(self):
+    def plot_factory_wasted_production_over_time(self) -> go.Figure:
         wasted_cumsum = self.wasted_production_over_time()
 
         fig = go.Figure(
@@ -368,7 +367,7 @@ class Kpis:
 
         return fig
 
-    def plot_travel_duration_evolution(self):
+    def plot_travel_duration_evolution(self) -> go.Figure:
         fig = go.Figure()
 
         # Extract navigation durations from the trips dataframe
@@ -432,7 +431,7 @@ class Kpis:
 
         return fig
 
-    def plot_co2_transportation(self, combine_ships: bool = False):
+    def plot_co2_transportation(self, combine_ships: bool = False) -> go.Figure:
         ship_capacities = {ship["name"]: ship["capacity_max"] for ship in self.config["ships"]}
 
         # Calculate total CO2 as percentage across all ships
@@ -475,18 +474,18 @@ class Kpis:
         return fig
 
     @staticmethod
-    def _format_costs(val):
+    def _format_costs(val: float) -> str:
         return "{:,.2f} €".format(round(val, 2))
 
     @staticmethod
-    def _format_time(val):
+    def _format_time(val: float) -> str:
         return "{:d} H".format(round(val))
 
     @staticmethod
-    def _format_quantity(val):
+    def _format_quantity(val: float) -> str:
         return "{:d} Tons".format(round(val))
 
-    def plot_cost_kpis_table(self):
+    def plot_cost_kpis_table(self) -> go.Figure:
         kpis = self.calculate_functional_kpis()
         initial_investment = kpis["Initial Investment"]
         functional_costs = kpis["Functional Costs"]
@@ -630,7 +629,7 @@ class Kpis:
 
         return fig
 
-    def plot_metric_kpis_table(self):
+    def plot_metric_kpis_table(self) -> go.Figure:
         factory_df = self.dfs[self.factory_name]
 
         # Calculate metrics
@@ -717,3 +716,16 @@ class Kpis:
         )
 
         return fig
+
+    def generate_kpis_graphs(self) -> list[go.Figure]:
+        return [
+            self.plot_factory_capacity_evolution(),
+            self.plot_factory_capacity_evolution_violin(),
+            self.plot_storage_capacity_comparison(),
+            self.plot_factory_wasted_production_over_time(),
+            self.plot_travel_duration_evolution(),
+            self.plot_waiting_time_evolution(),
+            self.plot_co2_transportation(combine_ships=True),
+            self.plot_cost_kpis_table(),
+            self.plot_metric_kpis_table(),
+        ]

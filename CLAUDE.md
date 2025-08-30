@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+## Python
+Using python >= 3.10 
+(usefull for annotation type, do not use typing module)
+
 ### Installation & Environment
 ```bash
 # Install dependencies (recommended)
