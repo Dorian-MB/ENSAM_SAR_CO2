@@ -2,6 +2,7 @@ import random
 
 from pathlib import Path
 import sys
+
 sys.path.append(str(Path.cwd()))
 
 from eco2_normandy.logger import Logger
@@ -47,12 +48,34 @@ class Factory(Port):
 
 
     """
-    def __init__(self, num_period_per_hours, env, name, capacity_max, sources, docks,
-                 pbs_to_dock, scheduled_maintenance_period_major, scheduled_maintenance_period_minor,
-                 unscheduled_maintenance_prob, pump_rate, pump_in_maintenance_rate, loading_time,
-                 weather_waiting_time, pilot_waiting_time, dock_waiting_time, lock_waiting_time,
-                 initial_capacity, transit_time_to_dock, transit_time_from_dock,
-                 number_of_tanks, cost_per_tank, logger=None, **kwargs):
+
+    def __init__(
+        self,
+        num_period_per_hours,
+        env,
+        name,
+        capacity_max,
+        sources,
+        docks,
+        pbs_to_dock,
+        scheduled_maintenance_period_major,
+        scheduled_maintenance_period_minor,
+        unscheduled_maintenance_prob,
+        pump_rate,
+        pump_in_maintenance_rate,
+        loading_time,
+        weather_waiting_time,
+        pilot_waiting_time,
+        dock_waiting_time,
+        lock_waiting_time,
+        initial_capacity,
+        transit_time_to_dock,
+        transit_time_from_dock,
+        number_of_tanks,
+        cost_per_tank,
+        logger=None,
+        **kwargs,
+    ):
         super().__init__(
             num_period_per_hours,
             env,
@@ -65,7 +88,7 @@ class Factory(Port):
             number_of_tanks=number_of_tanks,
             cost_per_tank=cost_per_tank,
             initial_capacity=initial_capacity,
-            logger=logger
+            logger=logger,
         )
         self.logger = logger or Logger()
         self.sources = sources
@@ -91,7 +114,7 @@ class Factory(Port):
         self.transit_time_from_dock = transit_time_from_dock / num_period_per_hours
 
         # var for production
-        self._maintenance_counters = [0]*len(self.sources)
+        self._maintenance_counters = [0] * len(self.sources)
         self._maintenance_flags = [False] * len(self.sources)
 
         self.__dict__.update(kwargs)
@@ -118,15 +141,17 @@ class Factory(Port):
         for i, source in enumerate(self.sources):
             if self._maintenance_counters[i] == 0:
                 self._maintenance_flags[i] = random.random() < source["maintenance_rate"]
-            
+
             # Si aucune maintenance n'est active durant l'heure, on ajoute la production
             if not self._maintenance_flags[i]:
                 # Production pour la période = production horaire / nombre de périodes par heure.
-                production_rate += source["annual_production_capacity"] / (NUM_HOURS_IN_YEARS * self.num_period_per_hours)
-            
+                production_rate += source["annual_production_capacity"] / (
+                    NUM_HOURS_IN_YEARS * self.num_period_per_hours
+                )
+
             # Passage à la période suivante dans l'heure pour cette source
             self._maintenance_counters[i] = (self._maintenance_counters[i] + 1) % self.num_period_per_hours
-            
+
         return production_rate
 
     def _call_pilot(self):
@@ -138,8 +163,8 @@ class Factory(Port):
             # if random.random() < self.unscheduled_maintenance_prob:
             #     maintenance_factor = self.maintenance_impact_unscheduled
             # factor = 1 - abs(maintenance_factor)
-            production = self._generate_production() # * factor # pour l'instant non pris en compte
-            available =  self._get_capacity_left()
+            production = self._generate_production()  # * factor # pour l'instant non pris en compte
+            available = self._get_capacity_left()
             to_add = min(production, available)
             if to_add:
                 yield self.container.put(to_add)

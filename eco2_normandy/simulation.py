@@ -4,6 +4,7 @@ from colorama import Fore
 
 from pathlib import Path
 import sys
+
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
 
@@ -17,10 +18,19 @@ from eco2_normandy.tools import data_to_dataframe
 from KPIS.LiveKpisGraphsGenerator import LiveKpisGraphsGenerator
 from KPIS.kpis import Kpis
 
+
 # --- Classe Simulation (corrigée pour réintégrer collecte de données et KPI) ---
 class Simulation:
     n_simu = 0
-    def __init__(self, config:dict=None, config_name:str=None, generator=None, logger=None, verbose=True):
+
+    def __init__(
+        self,
+        config: dict = None,
+        config_name: str = None,
+        generator=None,
+        logger=None,
+        verbose=True,
+    ):
         Simulation.n_simu += 1
         self.logger = logger or Logger()
         self.config_name = config_name
@@ -45,18 +55,25 @@ class Simulation:
             values=values["wind"],
             num_period=self.NUM_PERIOD,
             weather_probability=weather_probability,
-            logger = self.logger
+            logger=self.logger,
         )
 
         # Création de l'usine (Factory)
         self.factory = Factory(
-            num_period_per_hours=self.NUM_PERIOD_IN_HOURS, env=self.env, logger=self.logger, **self.config["factory"]
+            num_period_per_hours=self.NUM_PERIOD_IN_HOURS,
+            env=self.env,
+            logger=self.logger,
+            **self.config["factory"],
         )
 
         # Création des Storage
         self.storages = [
-            Storage(num_period_per_hours=self.NUM_PERIOD_IN_HOURS, 
-                    env=self.env, logger=self.logger, **storage)
+            Storage(
+                num_period_per_hours=self.NUM_PERIOD_IN_HOURS,
+                env=self.env,
+                logger=self.logger,
+                **storage,
+            )
             for storage in self.config["storages"]
         ]
 
@@ -78,7 +95,8 @@ class Simulation:
         StateSaver(self.env, self.factory, self.storages, self.ships)
 
     def run(self):
-        if self.verbose: self.logger.info(Fore.CYAN + f"Starting simulation n°{Simulation.n_simu}..."+Fore.RESET)
+        if self.verbose:
+            self.logger.info(Fore.CYAN + f"Starting simulation n°{Simulation.n_simu}..." + Fore.RESET)
         start_time = time.perf_counter()
         self.env.run(until=self.NUM_PERIOD)
         end_time = time.perf_counter()
@@ -93,9 +111,7 @@ class Simulation:
 
     @property
     def result(self):
-        return data_to_dataframe(
-            storages=self.storages, factory=self.factory, ships=self.ships
-        )
+        return data_to_dataframe(storages=self.storages, factory=self.factory, ships=self.ships)
 
     def get_kpis_generator(self, live=True):
         if live:
@@ -109,9 +125,9 @@ class Simulation:
         )
 
 
-
 if __name__ == "__main__":
     from eco2_normandy.tools import get_simlulation_variable
+
     path = "scenarios\dev\phase3_bergen_18k_2boats.yaml"
     path = "config.yaml"
     config = get_simlulation_variable(path)[0]

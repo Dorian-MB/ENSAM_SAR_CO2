@@ -3,6 +3,7 @@ from enum import Enum
 
 from pathlib import Path
 import sys
+
 sys.path.append(str(Path.cwd()))
 
 import simpy
@@ -23,38 +24,41 @@ WEATHER_LOOK_AHEAD = 10
 
 # --- Enumération pour l'état des navires ---
 class shipState(Enum):
-    DOCKED = 0      # À quai
+    DOCKED = 0  # À quai
     NAVIGATING = 1  # En navigation vers la destination
-    WAITING = 2     # En attente (pour quai ou pilote)
-    DOCKING = 3     # En cours d'amarrage
-    INIT = -1       # État initial
+    WAITING = 2  # En attente (pour quai ou pilote)
+    DOCKING = 3  # En cours d'amarrage
+    INIT = -1  # État initial
 
     def __str__(self):
         return self.name
 
+
 # --- Classe Ship (corrigée pour réintégrer la logique manquante) ---
 class Ship(object):
-    def __init__(self,
-                 num_period_per_hours: int,
-                 env: simpy.Environment,
-                 name: str,
-                 factory: Factory,
-                 storages: list,
-                 weather_station,
-                 capacity_max: int,
-                 speed_max: int,
-                 allowed_speeds: dict,
-                 distances: dict,
-                 init: dict,
-                 staff_cost_per_hour: int,
-                 usage_cost_per_hour: int,
-                 immobilization_cost_per_hour: int,
-                 ship_buying_cost: int,
-                 fuel_consumption_per_day: float,
-                 max_percent_capacity: float = 1.0,
-                 fixed_storage_destination=None,
-                 logger=None,
-                 **kwargs):
+    def __init__(
+        self,
+        num_period_per_hours: int,
+        env: simpy.Environment,
+        name: str,
+        factory: Factory,
+        storages: list,
+        weather_station,
+        capacity_max: int,
+        speed_max: int,
+        allowed_speeds: dict,
+        distances: dict,
+        init: dict,
+        staff_cost_per_hour: int,
+        usage_cost_per_hour: int,
+        immobilization_cost_per_hour: int,
+        ship_buying_cost: int,
+        fuel_consumption_per_day: float,
+        max_percent_capacity: float = 1.0,
+        fixed_storage_destination=None,
+        logger=None,
+        **kwargs,
+    ):
         self.logger = logger or Logger()
         self.env = env
         self.name = name
@@ -77,7 +81,7 @@ class Ship(object):
         self.next_state = None
         self.time_to_wait = 0
         self.time_left_docked = 0
-        self.former_destination = None # Pour l'animation
+        self.former_destination = None  # Pour l'animation
         self.destination = None
 
         # Coûts par période
@@ -87,9 +91,9 @@ class Ship(object):
         self.ship_buying_cost = ship_buying_cost
         self.fuel_consumption_per_day = fuel_consumption_per_day
 
-        capa_init = min(self.init.get("capacity", 0), self.capacity_max) 
+        capa_init = min(self.init.get("capacity", 0), self.capacity_max)
         self.container = Container(env, init=capa_init, capacity=capacity_max)
-        self.dock_req = None # Permet de tracer les requests faite aux ports
+        self.dock_req = None  # Permet de tracer les requests faite aux ports
         self.is_docked = False  # Indique si le navire est amarré
 
         self.__dict__.update(kwargs)
@@ -97,7 +101,7 @@ class Ship(object):
 
     @property
     def capacity(self):
-     return self.container.level
+        return self.container.level
 
     def _save_state(self):
         states_to_save = [
@@ -112,9 +116,9 @@ class Ship(object):
             "usage_cost_per_period",
             "immobilization_cost_per_period",
         ]
-        self.history.append({k: getattr(self, k) if k != "destination"
-                             else getattr(self, k).name 
-                             for k in states_to_save})
+        self.history.append(
+            {k: getattr(self, k) if k != "destination" else getattr(self, k).name for k in states_to_save}
+        )
 
     def _check_if_arrived(self):
         if self.distance_to_go <= 0:
@@ -127,13 +131,15 @@ class Ship(object):
         self._check_if_arrived()
 
     def _pick_new_destination(self):
-        self.former_destination = self.destination # Pour l'animation
+        self.former_destination = self.destination  # Pour l'animation
         if isinstance(self.destination, Storage):
             self.distance_to_go = get_distance(self.destination, self.factory, self.distances)
             self.destination = self.factory
         else:
             if self.fixed_storage_destination:
-                self.destination = get_destination_from_name(self.fixed_storage_destination, self.factory, self.storages)
+                self.destination = get_destination_from_name(
+                    self.fixed_storage_destination, self.factory, self.storages
+                )
             else:
                 self.destination = random.choice(self.storages)
             self.distance_to_go = get_distance(self.destination, self.factory, self.distances)
@@ -145,10 +151,10 @@ class Ship(object):
                 if self.capacity == 0:
                     return True
                 transferred_amount = yield self.env.process(self.destination.pump(self.capacity))
-                if transferred_amount: 
+                if transferred_amount:
                     yield self.container.get(transferred_amount)
                 return self.capacity == 0
-    
+
             case Factory():
                 free_cap = self.capacity_max - self.capacity
                 transferred_amount = yield self.env.process(self.destination.pump(free_cap))
@@ -170,7 +176,7 @@ class Ship(object):
             if self.state == shipState.DOCKED:
                 self.dock_req = self.destination.request()
                 self.distance_to_go = self.init["distance_to_go"]
-                yield self.dock_req 
+                yield self.dock_req
                 self.is_docked = True
                 yield self.env.timeout(1)
         while True:
@@ -185,18 +191,20 @@ class Ship(object):
                 yield self.dock_req
                 self.is_docked = True
                 self.state = shipState.DOCKED
-                docking_time = self.destination.lock_waiting_time or 1 # if no lock waiting time (i.e. 0) do a normal step 
+                docking_time = (
+                    self.destination.lock_waiting_time or 1
+                )  # if no lock waiting time (i.e. 0) do a normal step
                 yield self.env.timeout(docking_time)
-            elif self.state == shipState.DOCKED :
+            elif self.state == shipState.DOCKED:
                 transfer_finished = yield self.env.process(self.load_unload())
                 if transfer_finished and not wait_for_bad_weather_before_leaving_port(weathers, self.allowed_speeds):
-                    undock_time = self.destination.lock_waiting_time or 1 # same
+                    undock_time = self.destination.lock_waiting_time or 1  # same
                     yield self.env.timeout(undock_time)
                     self.state = shipState.WAITING
                     self.next_state = shipState.NAVIGATING
                     self.time_to_wait = self.destination.transit_time_from_dock
                     self.destination.release(self.dock_req)
-                    self.dock_req = None 
+                    self.dock_req = None
                     self.is_docked = False
                 else:
                     yield self.env.timeout(1)
