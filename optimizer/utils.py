@@ -272,7 +272,7 @@ class ConfigBuilderFromSolution:
         elif sol["use_Rotterdam"]:
             return "Rotterdam"
 
-    def build(self, sol: dict) -> dict:
+    def build(self, sol: dict, num_period:int = 2000) -> dict:
         cfg = deepcopy(self.base_config)
         cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
         cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)
@@ -308,6 +308,7 @@ class ConfigBuilderFromSolution:
             cfg["ships"][i]["speed_max"] = sol["ship_speed"]
             cfg["ships"][i]["ship_buying_cost"] = self.predict_cost(sol["ship_capacity"], X, Y)
         cfg["general"]["number_of_ships"] = sol["num_ship"]
+        cfg["general"]["num_period"] = num_period
         return cfg
 
     def build_heuristic(self, sol: dict) -> dict:
