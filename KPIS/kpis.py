@@ -17,7 +17,7 @@ pio.templates.default = "ggplot2"
 
 
 class Kpis:
-    def __init__(self, simulation_df: dict[str, pd.DataFrame], config: dict[str, any], logger: Logger | None = None) -> None:
+    def __init__(self, simulation_df: pd.DataFrame, config: dict, logger: Logger | None = None) -> None:
         self.config = config
         self.logger = logger or Logger()
         self.factory_name = self.config["factory"]["name"]
@@ -50,8 +50,8 @@ class Kpis:
         else:
             return float(val)
 
-    def _to_MultiIndex_dfs(self, dic: dict[str, any]) -> pd.DataFrame:
-        return to_MultiIndex_dfs(dic)
+    def _to_MultiIndex_dfs(self, dict_: dict) -> pd.DataFrame:
+        return to_MultiIndex_dfs(dict_)
 
     def get_lvl_0_index(self, dfs: pd.DataFrame) -> pd.Index:
         return self._get_lvl_index(dfs, 0)
