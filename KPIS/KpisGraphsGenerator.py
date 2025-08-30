@@ -17,6 +17,7 @@ from eco2_normandy.tools import former_data_to_dataframe as data_to_dataframe
 
 pio.templates.default = "ggplot2"
 
+
 class KpisGraphsGenerator:
     generated_graphs_index = 0
     generated_excel_files_index = 0
@@ -30,7 +31,7 @@ class KpisGraphsGenerator:
 
     def __init__(
         self,
-        simulation_df,
+        simulation,
         config,
         storage_columns=["storage"],
         factory_column="factory",
@@ -41,7 +42,10 @@ class KpisGraphsGenerator:
         self.show_tables = show_tables
         self.config = config
         self.output_excels = output_excels
-        self.df = simulation_df
+        factory = simulation.factory
+        storages = simulation.storages
+        ships = simulation.ships
+        self.df = data_to_dataframe(factory, storages, ships)
         self.output_folder = os.path.join(
             "KPIS",
             "generated_graphs",
@@ -60,12 +64,10 @@ class KpisGraphsGenerator:
         # Dynamically identify ship columns
         self.factory_column = self.config["factory"]["name"]
         self.storage_columns = [s["name"] for s in self.config["storages"]]
-        self.ship_columns = self.df.columns[
-            len(storage_columns) + 2 :
-        ].tolist()  # All columns after 'storage'
+        self.ship_columns = self.df.columns[len(storage_columns) + 2 :].tolist()  # All columns after 'storage'
 
         self.kpis = config["KPIS"]
-        # self._trip_analysis()
+        self._trip_analysis()
 
     def _trip_analysis(self):
         ships = [s["name"] for s in self.config["ships"]]
@@ -85,6 +87,7 @@ class KpisGraphsGenerator:
             }
 
             for _, l in data.items():
+                state = str(l.get("state"))
                 if init_new_trip:
                     trip = {
                         "DOCKED": 0,
@@ -95,17 +98,14 @@ class KpisGraphsGenerator:
                         "UNLOADING": 0,
                     }
                     init_new_trip = False
-
-                trip[l.get("state")] += 1
-                if l.get("destination") == factory_name and l.get("state") == "DOCKED":
+                trip[state] += 1
+                if l.get("destination") == factory_name and state == "DOCKED":
                     trip["LOADING"] += 1
-                elif (
-                    l.get("destination") in storage_names and l.get("state") == "DOCKED"
-                ):
+                elif l.get("destination") in storage_names and state == "DOCKED":
                     trip["UNLOADING"] += 1
 
                 if (
-                    l.get("state") == "DOCKED"
+                    state == "DOCKED"
                     and l.get("destination") == factory_name
                     and l.get("capacity") in ["0", "0.0"]
                 ):
@@ -125,13 +125,8 @@ class KpisGraphsGenerator:
         return "{:d} Tons".format(round(val))
 
     def save_plt_to_image(self, fig_name):
-
         self.generated_graphs_index += 1
-        plt.savefig(
-            os.path.join(
-                self.output_folder, f"{self.generated_graphs_index} {fig_name}"
-            )
-        )
+        plt.savefig(os.path.join(self.output_folder, f"{self.generated_graphs_index} {fig_name}"))
 
     def save_sheets_in_memory(self, dataframes, sheet_name):
         """
@@ -170,16 +165,12 @@ class KpisGraphsGenerator:
             # Open the existing Excel file in append mode
             with pd.ExcelWriter(output_path, engine="openpyxl", mode="a") as writer:
                 for sheet in self.sheets_memory:
-                    sheet["dataframe"].to_excel(
-                        writer, sheet_name=sheet["sheet_name"], index=False
-                    )
+                    sheet["dataframe"].to_excel(writer, sheet_name=sheet["sheet_name"], index=False)
         else:
             # Create a new Excel file
             with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
                 for sheet in self.sheets_memory:
-                    sheet["dataframe"].to_excel(
-                        writer, sheet_name=sheet["sheet_name"], index=False
-                    )
+                    sheet["dataframe"].to_excel(writer, sheet_name=sheet["sheet_name"], index=False)
 
         # Clear the sheets_memory after saving
         self.sheets_memory.clear()
@@ -207,25 +198,19 @@ class KpisGraphsGenerator:
                     # Iterate over the dataframes and save each one to a new sheet
                     for i, df in enumerate(dataframes):
                         sheet_name_with_index = f"{sheet_name}"
-                        df.to_excel(
-                            writer, sheet_name=sheet_name_with_index, index=False
-                        )
+                        df.to_excel(writer, sheet_name=sheet_name_with_index, index=False)
 
             else:
                 # If the file doesn't exist, create a new one
                 with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
                     for i, df in enumerate(dataframes):
                         sheet_name_with_index = f"{sheet_name}"
-                        df.to_excel(
-                            writer, sheet_name=sheet_name_with_index, index=False
-                        )
+                        df.to_excel(writer, sheet_name=sheet_name_with_index, index=False)
 
             print(f"Sheet added to Excel File: {sheet_name}")
 
     @staticmethod
-    def plot_Sensitivity_Analysis_of_Costs_Based_on_Storage_Tank_Size(
-        storage_sizes, operational_costs_storage
-    ):
+    def plot_Sensitivity_Analysis_of_Costs_Based_on_Storage_Tank_Size(storage_sizes, operational_costs_storage):
         plt.figure(figsize=(10, 6))
         plt.scatter(
             storage_sizes,
@@ -241,33 +226,25 @@ class KpisGraphsGenerator:
         plt.legend()
         plt.show()
 
-    def plot_factory_capacity_evolution(self, return_html=True):
+    def plot_factory_capacity_evolution(self, return_html=False):
         title = f"{self.factory_column} Capacity"
 
         # Extract storage capacity
-        self.df["storage_capacity"] = self.df[self.factory_column].apply(
-            lambda x: x["capacity"] if x else None
-        )
+        self.df["storage_capacity"] = self.df[self.factory_column].apply(lambda x: x["capacity"] if x else None)
 
         # Calculate the median storage capacity
         median_capacity = self.df["storage_capacity"].median()
 
         # Extract capacity_max for percentage calculation and plotting
-        capacity_max = (
-            self.df[self.factory_column].iloc[0].get("capacity_max", 1)
-        )  # Avoid division by zero
+        capacity_max = self.df[self.factory_column].iloc[0].get("capacity_max", 1)  # Avoid division by zero
         percentage = (median_capacity / capacity_max) * 100 if capacity_max > 0 else 0
 
         # Prepare data for saving to Excel
-        factory_capacity_data = pd.DataFrame(
-            {"Step": self.df["step"], title: self.df["storage_capacity"]}
-        )
+        factory_capacity_data = pd.DataFrame({"Step": self.df["step"], title: self.df["storage_capacity"]})
 
         # Save the data to Excel
         self.save_sheets_in_memory([factory_capacity_data], title)
-        self.graphs_data_dictionnary[f"{title} Evolution"] = (
-            factory_capacity_data.to_dict(orient="records")
-        )
+        self.graphs_data_dictionnary[f"{title} Evolution"] = factory_capacity_data.to_dict(orient="records")
 
         # Create a Plotly figure
         fig = go.Figure()
@@ -322,39 +299,32 @@ class KpisGraphsGenerator:
         if return_html:
             # Convert the figure to an HTML string and save it to a variable
             plot_html = fig.to_html(
-                full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
+                full_html=False,
+                div_id=f"plot-container-{self.generated_excel_files_index}",
             )
             return plot_html, None
-        else : 
+        else:
             return fig
 
-    def plot_factory_capacity_evolution_violin(self, return_html=True):
+    def plot_factory_capacity_evolution_violin(self, return_html=False):
         title = f"{self.factory_column} Capacity"
 
         # Extract storage capacity
-        self.df["storage_capacity"] = self.df[self.factory_column].apply(
-            lambda x: x["capacity"] if x else None
-        )
+        self.df["storage_capacity"] = self.df[self.factory_column].apply(lambda x: x["capacity"] if x else None)
 
         # Calculate the median storage capacity
         median_capacity = self.df["storage_capacity"].median()
 
         # Extract capacity_max for percentage calculation and plotting
-        capacity_max = (
-            self.df[self.factory_column].iloc[0].get("capacity_max", 1)
-        )  # Avoid division by zero
+        capacity_max = self.df[self.factory_column].iloc[0].get("capacity_max", 1)  # Avoid division by zero
         percentage = (median_capacity / capacity_max) * 100 if capacity_max > 0 else 0
 
         # Prepare data for saving to Excel
-        factory_capacity_data = pd.DataFrame(
-            {"Step": self.df["step"], title: self.df["storage_capacity"]}
-        )
+        factory_capacity_data = pd.DataFrame({"Step": self.df["step"], title: self.df["storage_capacity"]})
 
         # Save the data to Excel
         self.save_sheets_in_memory([factory_capacity_data], title)
-        self.graphs_data_dictionnary[f"{title} Evolution"] = (
-            factory_capacity_data.to_dict(orient="records")
-        )
+        self.graphs_data_dictionnary[f"{title} Evolution"] = factory_capacity_data.to_dict(orient="records")
 
         # Create a Plotly figure
         fig = go.Figure()
@@ -372,15 +342,16 @@ class KpisGraphsGenerator:
         if return_html:
             # Convert the figure to an HTML string and save it to a variable
             plot_html = fig.to_html(
-                full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
+                full_html=False,
+                div_id=f"plot-container-{self.generated_excel_files_index}",
             )
             return plot_html, None
         else:
-            return fig 
+            return fig
 
         # Pass plot_html to your template for rendering
 
-    def plot_travel_duration_evolution(self, return_html=True):
+    def plot_travel_duration_evolution(self, return_html=False):
         # Function to calculate the duration of travel for each ship based on the navigation states
         def calculate_navigation_durations(df, ship_column):
             durations = []
@@ -399,11 +370,7 @@ class KpisGraphsGenerator:
                     destination = ship["destination"]
 
                     # Start of navigation phase: 'NAVIGATING' state and a valid destination
-                    if (
-                        state == "NAVIGATING"
-                        and destination
-                        and (current_start_state != "NAVIGATING")
-                    ):
+                    if state == "NAVIGATING" and destination and (current_start_state != "NAVIGATING"):
                         current_start_step = step
                         current_start_state = state
                         current_start_destination = destination
@@ -447,9 +414,7 @@ class KpisGraphsGenerator:
         for ship_column, durations in all_ship_durations.items():
             fig1.add_trace(
                 go.Scatter(
-                    x=list(
-                        range(1, len(durations) + 1)
-                    ),  # Phases are numbered starting from 1
+                    x=list(range(1, len(durations) + 1)),  # Phases are numbered starting from 1
                     y=durations,
                     mode="lines+markers",  # Line with markers at each phase
                     name=ship_column,
@@ -473,13 +438,9 @@ class KpisGraphsGenerator:
             self.save_sheets_in_memory([travel_df], "Ships journey times")
 
             # Store the data in the graph dictionary for later use in templates
-            self.graphs_data_dictionnary["Evolution of ships journey times"] = (
-                travel_df.to_dict(orient="records")
-            )
+            self.graphs_data_dictionnary["Evolution of ships journey times"] = travel_df.to_dict(orient="records")
         # Save the plot as HTML
-        plot_html_1 = fig1.to_html(
-            full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
-        )
+        plot_html_1 = fig1.to_html(full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}")
 
         # Save the table as HTML
         # Save the table as HTML
@@ -490,8 +451,8 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-        
+            return fig1
+
     def calculate_waiting_durations(self, df, ship_column):
         # Function to calculate waiting times for each ship based on the states
         waiting_durations = []
@@ -517,9 +478,7 @@ class KpisGraphsGenerator:
                     current_destination = destination
 
                 # End of waiting phase: state changes from 'WAITING' to something else
-                elif (
-                    state not in waiting_states and current_state in waiting_states
-                ):
+                elif state not in waiting_states and current_state in waiting_states:
                     duration = step - current_wait_start
                     if duration > 0:  # Ensure valid duration
                         waiting_durations.append(duration)
@@ -527,7 +486,7 @@ class KpisGraphsGenerator:
 
         return waiting_durations
 
-    def plot_waiting_time_evolution(self, return_html=True):
+    def plot_waiting_time_evolution(self, return_html=False):
         # Prepare lists to store the data for Excel
         self.waiting_data = []
         all_ship_waiting_times = {}
@@ -553,9 +512,7 @@ class KpisGraphsGenerator:
         for ship_column, waiting_times in all_ship_waiting_times.items():
             fig1.add_trace(
                 go.Scatter(
-                    x=list(
-                        range(1, len(waiting_times) + 1)
-                    ),  # Trips are numbered starting from 1
+                    x=list(range(1, len(waiting_times) + 1)),  # Trips are numbered starting from 1
                     y=waiting_times,
                     mode="lines+markers",  # Line with markers at each phase
                     name=ship_column,
@@ -579,14 +536,10 @@ class KpisGraphsGenerator:
             self.save_sheets_in_memory([waiting_df], "Ships Waiting Times")
 
             # Store the data in the graph dictionary for later use in templates
-            self.graphs_data_dictionnary["Evolution of Ships Waiting Times"] = (
-                waiting_df.to_dict(orient="records")
-            )
+            self.graphs_data_dictionnary["Evolution of Ships Waiting Times"] = waiting_df.to_dict(orient="records")
 
         # Save the plot as HTML
-        plot_html_1 = fig1.to_html(
-            full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
-        )
+        plot_html_1 = fig1.to_html(full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}")
 
         # Store plot HTML in dictionary for later use in templates
         self.graphs_data_dictionnary["Evolution of Ships Waiting Times"] = plot_html_1
@@ -594,8 +547,7 @@ class KpisGraphsGenerator:
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-
+            return fig1
 
     def calculate_total_co2(self):
         # Function to calculate total CO2 transported (proportional to the ship's capacity)
@@ -615,15 +567,13 @@ class KpisGraphsGenerator:
                     ship_max_capacity = 0
                 if ship_column in row and isinstance(row[ship_column], dict):
                     ship_data = row[ship_column]
-                    total_capacity += float(ship_data.get("capacity", 0)) / float(
-                        ship_max_capacity
-                    )
+                    total_capacity += float(ship_data.get("capacity", 0)) / float(ship_max_capacity)
             total_co2.append(total_capacity * 100)
             steps.append(row["step"])
 
         return steps, total_co2
 
-    def plot_co2_transportation(self, return_html=True):
+    def plot_co2_transportation(self, return_html=False):
         # Calculate total CO2 transported over time
         steps, total_co2 = self.calculate_total_co2()
 
@@ -652,34 +602,26 @@ class KpisGraphsGenerator:
         )
 
         # Prepare data for saving to Excel
-        co2_data = pd.DataFrame(
-            {"Time Step": steps, "Total CO2 Transported": total_co2}
-        )
+        co2_data = pd.DataFrame({"Time Step": steps, "Total CO2 Transported": total_co2})
 
         # Save the data to Excel
         self.save_sheets_in_memory([co2_data], "CO2 Transported Over Time")
 
         # Store the data in the graph dictionary for later use in templates
-        self.graphs_data_dictionnary["Total CO2 Transported by Ships Over Time"] = (
-            co2_data.to_dict(orient="records")
-        )
+        self.graphs_data_dictionnary["Total CO2 Transported by Ships Over Time"] = co2_data.to_dict(orient="records")
 
         # Save the plot as HTML
-        plot_html_1 = fig1.to_html(
-            full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
-        )
+        plot_html_1 = fig1.to_html(full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}")
 
         # Store plot HTML in dictionary for later use in templates
-        self.graphs_data_dictionnary["Total CO2 Transported by Ships Over Time"] = (
-            plot_html_1
-        )
+        self.graphs_data_dictionnary["Total CO2 Transported by Ships Over Time"] = plot_html_1
 
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
+            return fig1
 
-    def plot_storage_capacity_comparison(self, return_html=True):
+    def plot_storage_capacity_comparison(self, return_html=False):
         # Initialize variables to track the total hours for each condition
         total_hours_capacity_max_equals_capacity = 0
         total_hours_capacity_max_greater_than_capacity = 0
@@ -762,27 +704,22 @@ class KpisGraphsGenerator:
                 [storage_capacity_data],
                 "Storage Capacity Conditions",
             )
-            self.graphs_data_dictionnary[
-                "Total Hours by Storage Capacity Conditions in Factory"
-            ] = storage_capacity_data.to_dict(orient="records")
+            self.graphs_data_dictionnary["Total Hours by Storage Capacity Conditions in Factory"] = (
+                storage_capacity_data.to_dict(orient="records")
+            )
 
         # Save the plot as HTML
-        plot_html_1 = fig1.to_html(
-            full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
-        )
+        plot_html_1 = fig1.to_html(full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}")
 
         # Store plot HTML in dictionary for later use in templates
-        self.graphs_data_dictionnary[
-            "Total Hours by Storage Capacity Conditions in Factory"
-        ] = plot_html_1
+        self.graphs_data_dictionnary["Total Hours by Storage Capacity Conditions in Factory"] = plot_html_1
 
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
+            return fig1
 
-
-    def plot_factory_wasted_production_over_time(self, return_html=True):
+    def plot_factory_wasted_production_over_time(self, return_html=False):
         # Extract the 'wasted_production' values and the corresponding 'step' values
         wasted_production = []
         time_steps = []
@@ -821,33 +758,26 @@ class KpisGraphsGenerator:
         )
 
         # Prepare data for saving to Excel
-        wasted_data = pd.DataFrame(
-            {"Time Step": time_steps, "Wasted Production": wasted_production}
-        )
+        wasted_data = pd.DataFrame({"Time Step": time_steps, "Wasted Production": wasted_production})
 
         # Save the data to Excel
         self.save_sheets_in_memory([wasted_data], "Wasted CO2 production")
 
         # Store the data in the graph dictionary for later use in templates
-        self.graphs_data_dictionnary["Evolution of Wasted CO2 production Over Time"] = (
-            wasted_data.to_dict(orient="records")
+        self.graphs_data_dictionnary["Evolution of Wasted CO2 production Over Time"] = wasted_data.to_dict(
+            orient="records"
         )
 
         # Save the plot as HTML
-        plot_html_1 = fig1.to_html(
-            full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}"
-        )
+        plot_html_1 = fig1.to_html(full_html=False, div_id=f"plot-container-{self.generated_excel_files_index}")
 
         # Store plot HTML in dictionary for later use in templates
-        self.graphs_data_dictionnary["Evolution of Wasted CO2 production Over Time"] = (
-            plot_html_1
-        )
+        self.graphs_data_dictionnary["Evolution of Wasted CO2 production Over Time"] = plot_html_1
 
         if return_html:
             return plot_html_1, None
         else:
-            return fig1 
-
+            return fig1
 
     def calculate_functional_kpis(self):
         # KPIs for the first table (Investissement de Départ)
@@ -876,30 +806,18 @@ class KpisGraphsGenerator:
                 if ship_column in row:
                     ship_data = row[ship_column]
                     state = ship_data.get("state", "")
-                    fuel_consumption_per_day = float(
-                        ship_data.get("fuel_consumption_per_day", 0)
-                    )
+                    fuel_consumption_per_day = float(ship_data.get("fuel_consumption_per_day", 0))
                     if state in ["NAVIGATING", "DOCKING"]:
                         fuel_cost += (
-                            fuel_consumption_per_day
-                            * self.kpis["fuel_price_per_ton"]
-                            / (num_period_per_hours * 24)
+                            fuel_consumption_per_day * self.kpis["fuel_price_per_ton"] / (num_period_per_hours * 24)
                         )  # Convert daily consumption to hourly
                         ship_navigation_cost += (
-                            float(
-                                ship_data.get("staff_cost_per_hour", 0)
-                                * num_period_per_hours
-                            )
-                            + float(ship_data.get("usage_cost_per_hour", 0))
-                            * num_period_per_hours
+                            float(ship_data.get("staff_cost_per_hour", 0) * num_period_per_hours)
+                            + float(ship_data.get("usage_cost_per_hour", 0)) * num_period_per_hours
                         )
                         ship_stoppage_cost += (
-                            float(
-                                ship_data.get("staff_cost_per_hour", 0)
-                                * num_period_per_hours
-                            )
-                            + float(ship_data.get("immobilization_cost_per_hour", 0))
-                            * num_period_per_hours
+                            float(ship_data.get("staff_cost_per_hour", 0) * num_period_per_hours)
+                            + float(ship_data.get("immobilization_cost_per_hour", 0)) * num_period_per_hours
                         )
                 ships_navigation_cost += ship_navigation_cost
                 ships_stoppage_cost += ship_stoppage_cost
@@ -914,27 +832,19 @@ class KpisGraphsGenerator:
 
         last_state = self.df.iloc[-1]
         co2_capacity_stored = sum(
-            [
-                last_state[storage_column].get("received_co2_over_time", 0)
-                for storage_column in self.storage_columns
-            ]
+            [last_state[storage_column].get("received_co2_over_time", 0) for storage_column in self.storage_columns]
         )
 
         co2_storage_cost = sum(
             [
-                last_state[storage_column].get("storage_cost_per_m3", 0)
-                * co2_capacity_stored
+                last_state[storage_column].get("storage_cost_per_m3", 0) * co2_capacity_stored
                 for storage_column in self.storage_columns
             ]
         )
 
-        co2_released_in_factory = sum(
-            [i.get("wasted_production", 0) for i in self.df[self.factory_column]]
-        )
+        co2_released_in_factory = sum([i.get("wasted_production", 0) for i in self.df[self.factory_column]])
 
-        co2_release_cost = (
-            co2_released_in_factory * self.kpis["co2_release_cost_per_ton"]
-        )
+        co2_release_cost = co2_released_in_factory * self.kpis["co2_release_cost_per_ton"]
 
         delay_penalty = 0.0  # Example delay penalty per step
         total_cost = ships_operating_cost + co2_release_cost + delay_penalty
@@ -963,11 +873,9 @@ class KpisGraphsGenerator:
 
         return initial_investment, functional_costs, combined_cost
 
-    def plot_cost_kpis_table(self, return_html=True):
+    def plot_cost_kpis_table(self, return_html=False):
         # Data for the first table (Investissement de Départ)
-        initial_investment, functional_costs, combined_cost = (
-            self.calculate_functional_kpis()
-        )
+        initial_investment, functional_costs, combined_cost = self.calculate_functional_kpis()
 
         # Data for the first table (Initial Investment)
         additional_data = [
@@ -1018,12 +926,8 @@ class KpisGraphsGenerator:
         ]
 
         # Prepare DataFrames for both tables
-        additional_df = pd.DataFrame(
-            additional_data, columns=["INITIAL INVESTMENT", "FORMULA", "VALUE"]
-        )
-        functional_df = pd.DataFrame(
-            data_with_values, columns=["FUNCTIONAL COST", "FORMULA", "VALUE"]
-        )
+        additional_df = pd.DataFrame(additional_data, columns=["INITIAL INVESTMENT", "FORMULA", "VALUE"])
+        functional_df = pd.DataFrame(data_with_values, columns=["FUNCTIONAL COST", "FORMULA", "VALUE"])
 
         combined_cost_df = pd.DataFrame(
             [
@@ -1128,41 +1032,24 @@ class KpisGraphsGenerator:
         else:
             return fig
 
-
-    def plot_metric_kpis_table(self, return_html=True):
-        co2_vented_quantity = sum(
-            [i.get("wasted_production", 0) for i in self.df[self.factory_column]]
-        )
+    def plot_metric_kpis_table(self, return_html=False):
+        co2_vented_quantity = sum([i.get("wasted_production", 0) for i in self.df[self.factory_column]])
         co2_transported_quantity = sum(
             [
                 self.df.iloc[-1][storage_column].get("received_co2_over_time", 0)
                 for storage_column in self.storage_columns
             ]
         )
-        average_travel_duration = np.mean(
-            [trip.get("Duration (hours)", 0) for trip in self.travel_data]
-        )
-        average_waiting_time = np.mean(
-            [trip.get("Waiting Time (hours)", 0) for trip in self.waiting_data]
-        )
+        average_travel_duration = np.mean([trip.get("Duration (hours)", 0) for trip in self.travel_data])
+        average_waiting_time = np.mean([trip.get("Waiting Time (hours)", 0) for trip in self.waiting_data])
         time_tank_full = np.sum(
-            [
-                1 if i.get("capacity", 0) >= i.get("capacity_max", 0) else 0
-                for i in self.df[self.factory_column]
-            ]
+            [1 if i.get("capacity", 0) >= i.get("capacity_max", 0) else 0 for i in self.df[self.factory_column]]
         )
         time_tank_not_full = np.sum(
-            [
-                1 if i.get("capacity", 0) < i.get("capacity_max", 0) else 0
-                for i in self.df[self.factory_column]
-            ]
+            [1 if i.get("capacity", 0) < i.get("capacity_max", 0) else 0 for i in self.df[self.factory_column]]
         )
-        percentage_time_tank_full = (
-            time_tank_full / (time_tank_full + time_tank_not_full) * 100
-        )
-        percentage_co2_vented = (
-            co2_vented_quantity / (co2_vented_quantity + co2_transported_quantity) * 100
-        )
+        percentage_time_tank_full = time_tank_full / (time_tank_full + time_tank_not_full) * 100
+        percentage_co2_vented = co2_vented_quantity / (co2_vented_quantity + co2_transported_quantity) * 100
 
         num_rows = 1
 
@@ -1193,12 +1080,14 @@ class KpisGraphsGenerator:
                                 "Time storage are not full (hours)",
                             ],
                             [
-                                self._format_time(average_travel_duration),
-                                self._format_time(average_waiting_time),
+                                # self._format_time(average_travel_duration),
+                                average_travel_duration,
+                                # self._format_time(average_waiting_time),
+                                average_waiting_time,
                                 f"{self._format_quantity(co2_vented_quantity)} ({percentage_co2_vented:,.2f} %)",
-                                f"{self._format_quantity(co2_transported_quantity)} ({100-percentage_co2_vented:,.2f} %)",
+                                f"{self._format_quantity(co2_transported_quantity)} ({100 - percentage_co2_vented:,.2f} %)",
                                 f"{self._format_time(time_tank_full)} ({percentage_time_tank_full:,.2f} %)",
-                                f"{self._format_time(time_tank_not_full)} ({100-percentage_time_tank_full:,.2f} %)",
+                                f"{self._format_time(time_tank_not_full)} ({100 - percentage_time_tank_full:,.2f} %)",
                             ],
                         ]
                     ),
@@ -1220,12 +1109,10 @@ class KpisGraphsGenerator:
         # Save the Plotly figure as an HTML file
         kpis_html = fig.to_html(full_html=False, div_id="KPIS_metrics_table")
 
-
         if return_html:
             return kpis_html, None
         else:
-            return fig 
-
+            return fig
 
     def parse_dict(self, value):
         try:
@@ -1234,9 +1121,7 @@ class KpisGraphsGenerator:
             return None
 
     def generate_kpis_graphs(self):
-        print(
-            f"""{Fore.CYAN}Plotting KPIs Graphs and saving data to an excel file...{Style.RESET_ALL}"""
-        )
+        print(f"""{Fore.CYAN}Plotting KPIs Graphs and saving data to an excel file...{Style.RESET_ALL}""")
         html_plots = []
         html_plots.extend(
             [
@@ -1252,9 +1137,7 @@ class KpisGraphsGenerator:
             ]
         )
 
-        KpisGraphsGenerator.generate_html_page_with_plots(
-            [i for i, _ in html_plots], self.output_folder
-        )
+        KpisGraphsGenerator.generate_html_page_with_plots([i for i, _ in html_plots], self.output_folder)
         # self.save_all_sheets_to_excel()
 
         kpis = self.plot_cost_kpis_table()[1]
@@ -1262,7 +1145,6 @@ class KpisGraphsGenerator:
 
     @staticmethod
     def generate_html_page_with_plots(html_plots, output_folder, full_page=False):
-
         if not full_page:
             # Determine the path to the bundled directory
             if getattr(sys, "frozen", False):
@@ -1275,9 +1157,7 @@ class KpisGraphsGenerator:
                 templates_base_path = os.path.dirname(__file__)
 
             # Setup Jinja2 environment and load the template
-            template_loader = FileSystemLoader(
-                searchpath=os.path.join(templates_base_path)
-            )
+            template_loader = FileSystemLoader(searchpath=os.path.join(templates_base_path))
             template_env = Environment(loader=template_loader)
             template = template_env.get_template("template.html")
 
@@ -1289,9 +1169,7 @@ class KpisGraphsGenerator:
         # Write HTML content to a file
 
         os.makedirs(output_folder, exist_ok=True)
-        with open(
-            os.path.join(output_folder, "Graphs gallery.html"), "w", encoding="utf-8"
-        ) as html_file:
+        with open(os.path.join(output_folder, "Graphs gallery.html"), "w", encoding="utf-8") as html_file:
             html_file.write(html_content)
 
         print(f"HTML file generated: {output_folder}")
@@ -1308,7 +1186,7 @@ class KpisGraphsGenerator:
         simulations_by_ports = {
             "Bergen": [i for i in simulations if "bergen" in i.config_name],
             "Rotterdam": [i for i in simulations if "rotterdam" in i.config_name],
-            "other":[i for i in simulations if ("bergen" not in i.config_name) and ("rotterdam" not in i.config_name)]
+            "other": [i for i in simulations if ("bergen" not in i.config_name) and ("rotterdam" not in i.config_name)],
         }
 
         combined_df = pd.DataFrame()
@@ -1320,9 +1198,7 @@ class KpisGraphsGenerator:
                 df = simulation.data_df
                 label = simulation.config_name
                 factory_column = simulation.config["factory"]["name"]
-                df["storage_capacity"] = df[factory_column].apply(
-                    lambda x: x["capacity"] if x else None
-                )
+                df["storage_capacity"] = df[factory_column].apply(lambda x: x["capacity"] if x else None)
                 # Add the port and scenario label for separation
                 df["Scenario"] = label
                 combined_df = pd.concat([combined_df, df], ignore_index=True)
@@ -1396,16 +1272,12 @@ class KpisGraphsGenerator:
                     "Scenario": config,
                     "Number of Boats": nb_boats,
                     "Boat Purchase Cost": KpisGraphsGenerator._format_costs(boat_cost),
-                    "CO2 Released Cost": KpisGraphsGenerator._format_costs(
-                        co2_released_cost
-                    ),
+                    "CO2 Released Cost": KpisGraphsGenerator._format_costs(co2_released_cost),
                     "Total Cost": KpisGraphsGenerator._format_costs(total_cost),
                 }
             )
 
-            combined_df = pd.concat(
-                [combined_df, serie.to_frame().T], ignore_index=True
-            )
+            combined_df = pd.concat([combined_df, serie.to_frame().T], ignore_index=True)
         num_rows = 1
         fig = make_subplots(
             rows=num_rows,  # 1 rows
@@ -1464,9 +1336,7 @@ class KpisGraphsGenerator:
                     }
                 )
 
-                combined_df = pd.concat(
-                    [combined_df, serie.to_frame().T], ignore_index=True
-                )
+                combined_df = pd.concat([combined_df, serie.to_frame().T], ignore_index=True)
 
         fig = px.bar(
             combined_df,

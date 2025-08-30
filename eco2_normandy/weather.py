@@ -4,9 +4,11 @@ from random import uniform, choice
 
 from pathlib import Path
 import sys
+
 sys.path.append(str(Path.cwd()))
 
 from eco2_normandy.logger import Logger
+
 
 # --- Classe Weather ---
 @dataclass
@@ -14,14 +16,15 @@ class CurrentData:
     angle: int
     speed: int
 
+
 @dataclass
 class WeatherReport(object):
     wind: int
     wave: int
     current: CurrentData
 
-class WeatherStation(object):
 
+class WeatherStation(object):
     def __init__(
         self,
         values: list,
@@ -35,9 +38,7 @@ class WeatherStation(object):
         if generator:
             self.weather = generator()
         else:
-            self.weather: list[WeatherReport] = self._generate_weather(
-                weather_probability, num_period, values
-            )
+            self.weather: list[WeatherReport] = self._generate_weather(weather_probability, num_period, values)
 
     def get_weather(self, period: int) -> WeatherReport:
         """
@@ -66,9 +67,7 @@ class WeatherStation(object):
         end_idx = int(min(len(self.weather), end + 1))
         return self.weather[start_idx:end_idx]
 
-    def _generate_weather(
-        self, weather_probability: dict, num_period: int, values: dict
-    ) -> list:
+    def _generate_weather(self, weather_probability: dict, num_period: int, values: dict) -> list:
         wind_p = weather_probability.get("wind", 0)
         wave_p = weather_probability.get("waves", 0)
         current_p = weather_probability.get("current", 0)

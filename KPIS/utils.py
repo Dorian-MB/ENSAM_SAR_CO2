@@ -1,7 +1,8 @@
 from typing import Dict, List, Tuple
 import pandas as pd
-from IPython.display import display 
+from IPython.display import display
 from pprint import pprint
+
 
 def to_MultiIndex_dfs(dic):
     dfs = []
@@ -12,10 +13,9 @@ def to_MultiIndex_dfs(dic):
         dfs.append(d)
     return pd.concat(dfs, axis=1)
 
+
 def normalize_absolute(
-    kpis: Dict[str, float],
-    bounds: Dict[str, Tuple[float, float]],
-    clip: bool = True
+    kpis: Dict[str, float], bounds: Dict[str, Tuple[float, float]], clip: bool = True
 ) -> Dict[str, float]:
     """
     Normalize KPIs by fixed absolute bounds.
@@ -36,9 +36,7 @@ def normalize_absolute(
     return normed
 
 
-def compute_dynamic_bounds(
-    kpis_list: List[dict]
-) -> Dict[str, Tuple[float, float]]:
+def compute_dynamic_bounds(kpis_list: List[dict]) -> Dict[str, Tuple[float, float]]:
     """
     Compute (min,max) for each KPI across a list of raw KPI dicts.
     For dynamic normalization.
@@ -55,6 +53,7 @@ def compute_dynamic_bounds(
 
 def normalize_dynamic(kpis, dynamic_bounds, clip: bool = True) -> Dict[str, float]:
     return normalize_absolute(kpis, dynamic_bounds, clip)
+
 
 # Example usage:
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+
 sys.path.append(str(Path.cwd()))
 
 from eco2_normandy.logger import Logger
@@ -7,10 +8,28 @@ from eco2_normandy.port import Port
 
 
 class Storage(Port):
-    def __init__(self, num_period_per_hours, env, name, capacity_max, consumption_rate,
-                 maintenance_rate, docks, pbs_to_dock, pump_rate, pump_in_maintenance_rate,
-                 lock_waiting_time, unloading_time, transit_time_to_dock, transit_time_from_dock,
-                 storage_cost_per_m3, number_of_tanks, cost_per_tank, logger, **kwargs) -> None:
+    def __init__(
+        self,
+        num_period_per_hours,
+        env,
+        name,
+        capacity_max,
+        consumption_rate,
+        maintenance_rate,
+        docks,
+        pbs_to_dock,
+        pump_rate,
+        pump_in_maintenance_rate,
+        lock_waiting_time,
+        unloading_time,
+        transit_time_to_dock,
+        transit_time_from_dock,
+        storage_cost_per_m3,
+        number_of_tanks,
+        cost_per_tank,
+        logger,
+        **kwargs,
+    ) -> None:
         super().__init__(
             num_period_per_hours,
             env,
@@ -36,14 +55,14 @@ class Storage(Port):
 
     def _save_state(self):
         states_to_save = [
-                "capacity",
-                "capacity_max",
-                "consumption_rate",
-                "maintenance",
-                "end_of_maintenance",
-                "dock_usage",
-                "received_co2_over_time",
-                "storage_cost_per_m3",
+            "capacity",
+            "capacity_max",
+            "consumption_rate",
+            "maintenance",
+            "end_of_maintenance",
+            "dock_usage",
+            "received_co2_over_time",
+            "storage_cost_per_m3",
         ]
         self.history.append({k: getattr(self, k) for k in states_to_save})
 

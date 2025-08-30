@@ -3,23 +3,29 @@ from colorama import Fore
 import pandas as pd
 
 from eco2_normandy.simulation import Simulation
-from optimizer.utils import (ParetoFront, 
-                            surrogate_metrics, 
-                            ConfigBuilderFromSolution, 
-                            calculate_performance_metrics,
-                            Normalizer)
+from optimizer.utils import (
+    ParetoFront,
+    surrogate_metrics,
+    ConfigBuilderFromSolution,
+    calculate_performance_metrics,
+    Normalizer,
+)
 from eco2_normandy.logger import Logger
-                                                         
+
 metrics_keys = Normalizer().metrics_keys
 
+
 class SimCallback(CpSolverSolutionCallback):
-    def __init__(self, variables, 
-                 base_config:dict, 
-                 max_evals:int=50, 
-                 verbose:int=True, 
-                 metrics_keys:list[str]=metrics_keys, 
-                 logger=None, 
-                 ):
+    def __init__(
+        self,
+        variables: list,
+        base_config: dict,
+        max_evals: int = 50,
+        verbose: int | bool = True,
+        metrics_keys: list[str] = metrics_keys,
+        boundaries=None,
+        logger=None,
+    ):
         super().__init__()
         self.metrics_keys = metrics_keys
         self.vars = variables
@@ -33,9 +39,10 @@ class SimCallback(CpSolverSolutionCallback):
         self.surrogate_met = []
 
         self.normalize = Normalizer()
-        self.cfg_builder = ConfigBuilderFromSolution(base_config)
-        self.pareto_front = ParetoFront(self.metrics_keys) 
-        self.surrogate_front = ParetoFront() 
+        self.boundaries = boundaries
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, boundaries)
+        self.pareto_front = ParetoFront(self.metrics_keys)
+        self.surrogate_front = ParetoFront()
 
         self.norm_metrics = pd.DataFrame(columns=self.metrics_keys)
         self.raw_metrics = pd.DataFrame(columns=self.metrics_keys)
@@ -43,21 +50,30 @@ class SimCallback(CpSolverSolutionCallback):
         self.raw_metrics.index.name = "evals"
         self.solutions.index.name = "evals"
 
-    def get_config_from_solution(self, sol):
+    def get_config_from_solution(self, sol: dict) -> dict:
         return self.cfg_builder.build(sol)
 
-    def run_simulation(self, cfg):
-        try :
-            if self.verbose < 2: sim = Simulation(config=cfg, verbose=False)
-            if self.verbose == 2: sim = Simulation(config=cfg, verbose=True)
+    def run_simulation(self, cfg: dict):
+        try:
+            if self.verbose < 2:
+                sim = Simulation(config=cfg, verbose=False)
+            if self.verbose == 2:
+                sim = Simulation(config=cfg, verbose=True)
             sim.run()
         except Exception as e:
-            if self.verbose > 2: self.log.warning(Fore.RED + f"Simulation échouée pour la solution {self.evals}. {e}\n")
-            if self.verbose >= 2: self.log.warning(f"{cfg}"+ Fore.RESET)
+            if self.verbose > 2:
+                self.log.warning(Fore.RED + f"Simulation échouée pour la solution {self.evals}. {e}\n")
+            if self.verbose >= 2:
+                self.log.warning(f"{cfg}" + Fore.RESET)
             return None
         return sim
 
-    def _add_metrics_to_front(self, metrics:list|dict|pd.DataFrame, front:ParetoFront, front_name:str="")->bool:
+    def _add_metrics_to_front(
+        self,
+        metrics: list | dict | pd.DataFrame,
+        front: ParetoFront,
+        front_name: str = "",
+    ) -> bool:
         """Met à jour le front de Pareto avec les nouvelles métriques.
 
         Args:
@@ -76,18 +92,20 @@ class SimCallback(CpSolverSolutionCallback):
         # Si cette solution est dominée par le front de pareto, on skip
         if front.is_dominated(metrics):
             msg = f"Solution {self.solutions_tested} dominée par le {front_name}, on passe a la suivante."
-            if self.verbose > 2: self.log.info(Fore.YELLOW + msg + Fore.RESET)
-            return False # passe à la solution suivante
+            if self.verbose > 2:
+                self.log.info(Fore.YELLOW + msg + Fore.RESET)
+            return False  # passe à la solution suivante
         # Sinon on l’ajoute au front de pareto et on simule
         front.add(metrics, self.evals)
         return True
 
-    def on_solution_callback(self):
+    def on_solution_callback(self) -> None:
         self.solutions_tested += 1
 
         # 2.1 Limiter le nombre d'évaluations
         if self.evals > self.max_evals:
-            if self.verbose >= 1: self.log.info(Fore.RED + f"=== Limite d'évaluations atteinte ({self.max_evals}) ===" + Fore.RESET)
+            if self.verbose >= 1:
+                self.log.info(Fore.RED + f"=== Limite d'évaluations atteinte ({self.max_evals}) ===" + Fore.RESET)
             self.StopSearch()
             return
 
@@ -100,13 +118,15 @@ class SimCallback(CpSolverSolutionCallback):
             return
 
         if self.verbose > 2:
-            self.log.info(f"{Fore.LIGHTMAGENTA_EX}# Éval n°{self.evals}/{self.max_evals}: Total of {self.solutions_tested} sol tested: {Fore.RESET}\n"
+            self.log.info(
+                f"{Fore.LIGHTMAGENTA_EX}# Éval n°{self.evals}/{self.max_evals}: Total of {self.solutions_tested} sol tested: {Fore.RESET}\n"
                 f"\t-ship:{sol['num_ship']}-ship-capa:{sol['ship_capacity']}-speed:{sol['ship_speed']}\n"
-                f"\t-storge:{sol['num_storages']}")
+                f"\t-storge:{sol['num_storages']}"
+            )
 
         cfg = self.get_config_from_solution(sol)
         sim = self.run_simulation(cfg)
-        if sim is None: # if simulation failed, skip this solution, and continue to the next one
+        if sim is None:  # if simulation failed, skip this solution, and continue to the next one
             return
         metrics = self.calculate_performance_metrics(cfg, sim)
         self.kpis_list.append(metrics)
@@ -114,48 +134,42 @@ class SimCallback(CpSolverSolutionCallback):
             return
 
         if self.verbose > 2:
-            self.log.info(Fore.GREEN +
-                  f"→ Coût total combiné = {self.kpis_list[-1]['cost']:,.0f} €\n"
-                  f"\t→ production gaspillée = {self.kpis_list[-1]['wasted_production_over_time']:,.0f} m^3\n"
-                  f"\t→ Temps d'attente total = {self.kpis_list[-1]['waiting_time']:,.0f} s\n"
-                  f"\t→ Taux de remplissage de l'usine = {self.kpis_list[-1]['underfill_rate']*100:.2f}%\n"
-                  + Fore.RESET)
+            self.log.info(
+                Fore.GREEN + f"→ Coût total combiné = {self.kpis_list[-1]['cost']:,.0f} €\n"
+                f"\t→ production gaspillée = {self.kpis_list[-1]['wasted_production_over_time']:,.0f} m^3\n"
+                f"\t→ Temps d'attente total = {self.kpis_list[-1]['waiting_time']:,.0f} s\n"
+                f"\t→ Taux de remplissage de l'usine = {self.kpis_list[-1]['underfill_rate'] * 100:.2f}%\n" + Fore.RESET
+            )
 
         self.raw_metrics.loc[self.evals] = metrics.iloc[0]
         self.solutions.loc[self.evals] = sol
         self.evals += 1
 
-    def set_results(self):
+    def set_results(self) -> None:
         self._normalize_metrics()
         self._compute_raw_scores()
 
-    def calculate_performance_metrics(self, cfg, sim):
+    def calculate_performance_metrics(self, cfg: dict, sim) -> pd.DataFrame:
         return calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
 
-    def _normalize_metrics(self):
-        """ Normalize kpis metrics after run is done, to use same updated dynamic bounds on all solutions."""
+    def _normalize_metrics(self) -> None:
+        """Normalize kpis metrics after run is done, to use same updated dynamic bounds on all solutions."""
         f = lambda row: self.dynamic_normalize_metrics(row)
-        raw_data = self.raw_metrics.drop(["score"], axis=1, errors='ignore')
+        raw_data = self.raw_metrics.drop(["score"], axis=1, errors="ignore")
         norm_df = self.normalize(raw_data)
         self.norm_metrics = norm_df
-        
-    def _compute_raw_scores(self):
+
+    def _compute_raw_scores(self) -> None:
         """Retourne les scores bruts finaux sous forme de DataFrame."""
         if self.raw_metrics.empty:
-            self.log.info(Fore.YELLOW + "Aucun score brut calculé, DataFrame vide." + Fore.RESET)
-            return
-        if "score" in self.raw_metrics.columns:
-            return
+            self.log.info(Fore.YELLOW + "Aucun score calculé, DataFrame vide." + Fore.RESET)
+            raise ValueError("No scores computed, empty DataFrame.")
+
         self.raw_metrics["score"] = self.normalize.compute_score(self.norm_metrics)
-    
-    def best_raw_score(self):
+
+    def best_raw_score(self) -> pd.Series:
         """Retourne le meilleur score brut."""
         if "score" not in self.raw_metrics.columns:
             self.log.info(Fore.YELLOW + "Aucun score calculé." + Fore.RESET)
-            return None
+            raise ValueError("No scores computed.")
         return self.raw_metrics.loc[self.raw_metrics["score"].idxmin()]
-
-        
-
-
-

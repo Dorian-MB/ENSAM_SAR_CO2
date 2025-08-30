@@ -2,6 +2,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Generator
 import sys
+
+
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
 
@@ -11,45 +13,48 @@ from eco2_normandy.simulation import Simulation
 from eco2_normandy.tools import get_simlulation_variable
 from KPIS import Kpis
 
-def flatten(lst): 
+
+def flatten(lst: list) -> list:
     return [item for elem in lst for item in (flatten(elem) if isinstance(elem, list) else [elem])]
+
 
 ## Pareto ####################################################################
 def dominates(m1: dict, m2: dict) -> bool:
     """Renvoie True si m1 domine strictement m2 sur tous les KPI."""
-    # tous les indicateurs ≤ et au moins un < 
+    # tous les indicateurs ≤ et au moins un <
     return all(m1[k] <= m2[k] for k in m1) and any(m1[k] < m2[k] for k in m1)
 
+
 class ParetoFront:
-    def __init__(self, metrics_keys:list[str]=None):
-        self.front:list[tuple] = [] 
+    def __init__(self, metrics_keys: list[str] = None):
+        self.front: list[tuple] = []
         self.metrics_keys = metrics_keys
 
-    def add(self, metrics:dict|pd.Series, n_evals:int=None):
+    def add(self, metrics: dict | pd.Series, n_evals: int = None):
         """Ajoute (sol,metrics) au front si non dominé, et retire les solutions dominées."""
         non_dom = []
-        if isinstance(metrics, pd.Series): 
+        if isinstance(metrics, pd.Series):
             metrics = metrics.to_dict()
         if self.metrics_keys:
             assert all(k in self.metrics_keys for k in metrics), "All metrics must be in the defined keys."
         for entry, n in self.front:
-            if dominates(entry, metrics): # Si entry domine la nouvelle → on ne l'ajoute pas
-                return # on garde les meme solutions -> on quitte
+            if dominates(entry, metrics):  # Si entry domine la nouvelle → on ne l'ajoute pas
+                return  # on garde les meme solutions -> on quitte
             if not dominates(metrics, entry):
-                non_dom.append((entry, n))# ni l'un ni l'autre ne domine → on garde entry
+                non_dom.append((entry, n))  # ni l'un ni l'autre ne domine → on garde entry
             # si entry est dominer par la nouvelle solution, on ne la garde pas
         # on n'a pas quitté → la nouvelle solution est non dominée
         non_dom.append((metrics, n_evals))
         self.front = non_dom
 
-    def create(self, data:pd.DataFrame) -> pd.DataFrame:
+    def create(self, data: pd.DataFrame) -> pd.DataFrame:
         if isinstance(data, dict):
             data = pd.DataFrame(data)
         for _, row in data.iterrows():
             self.add(row)
         return pd.DataFrame([entry for entry, _ in self.front])
 
-    def is_dominated(self, metrics):
+    def is_dominated(self, metrics: dict) -> bool:
         """Vérifie si la solution metrics est dominée par une solution du front."""
         for entry, _ in self.front:
             if dominates(entry, metrics):
@@ -57,9 +62,10 @@ class ParetoFront:
         return False
 
     def get_front(self):
-        return {f"solution_{n or i}":sol for i, (sol, n) in enumerate(self.front)}
+        return {f"solution_{n or i}": sol for i, (sol, n) in enumerate(self.front)}
 
-def get_paretofront(data:pd.DataFrame)->pd.DataFrame:
+
+def get_paretofront(data: pd.DataFrame) -> pd.DataFrame:
     """
     Retourne le front de Pareto en considérant tous les KPI comme à
     *minimiser*. Si vous avez des KPIs à maximiser, il suffit de
@@ -67,15 +73,18 @@ def get_paretofront(data:pd.DataFrame)->pd.DataFrame:
     """
     return ParetoFront().create(data)
 
+
 ## Surrogate metrics ####################################################################
 def surrogate_metrics(sol, cfg):
     map_ship_fixed_storage_destination = {1: "Bergen", 0: "Rotterdam"}
-    total_period = cfg["general"]["num_period"] 
+    total_period = cfg["general"]["num_period"]
     speed = sol["ship_speed"]
     n_ships = sol["num_ship"]
     # Investment approx
-    inv = (cfg["factory"]["cost_per_tank"] * cfg["factory"]["number_of_tanks"]
-          + cfg["ships"][0]["ship_buying_cost"] * n_ships)
+    inv = (
+        cfg["factory"]["cost_per_tank"] * cfg["factory"]["number_of_tanks"]
+        + cfg["ships"][0]["ship_buying_cost"] * n_ships
+    )
     # Operating cost approx: fuel_price × speed × #ships
     fuel_price = cfg["KPIS"]["fuel_price_per_ton"]
     op = fuel_price * speed * n_ships
@@ -83,7 +92,9 @@ def surrogate_metrics(sol, cfg):
 
     # Wasted CO2 approx (volume minus transport capacity)
     hours_in_year = 24 * 365
-    prod_rate =  cfg["factory"]["sources"][0]["annual_production_capacity"] / (hours_in_year * cfg["general"]["num_period_per_hours"])
+    prod_rate = cfg["factory"]["sources"][0]["annual_production_capacity"] / (
+        hours_in_year * cfg["general"]["num_period_per_hours"]
+    )
     trans_cap = sol["ship_capacity"] * n_ships
     wasted = max(0, prod_rate * total_period - trans_cap)
 
@@ -91,7 +102,7 @@ def surrogate_metrics(sol, cfg):
     waiting = 0
     cumulative_travel_time = 0
     for i in range(n_ships):
-        dest = sol[f"fixed{i+1}_storage_destination"]
+        dest = sol[f"fixed{i + 1}_storage_destination"]
         distance = cfg["general"]["distances"]["Le Havre"][map_ship_fixed_storage_destination[dest]]
         travel_time = distance / speed
         cumulative_travel_time += travel_time
@@ -99,11 +110,11 @@ def surrogate_metrics(sol, cfg):
         transported = voyages * sol["ship_capacity"]
         produced = prod_rate * total_period / n_ships
         waiting += max(0, produced - transported)
-    travel = total_period // cumulative_travel_time 
+    travel = total_period // cumulative_travel_time
 
     # Approximate waiting proxy
     for i in range(n_ships):
-        dest = sol[f"fixed{i+1}_storage_destination"]
+        dest = sol[f"fixed{i + 1}_storage_destination"]
         distance = cfg["general"]["distances"]["Le Havre"][map_ship_fixed_storage_destination[dest]]
         travel_time = distance / speed
         voyages = total_period // travel_time
@@ -112,26 +123,32 @@ def surrogate_metrics(sol, cfg):
         produced = prod_rate * total_period / n_ships
         waiting += max(0, produced - transported)
 
-    return {"cost": cost,
-            "wasted": wasted,
-            "waiting": waiting,
-            "travel": travel}
+    return {"cost": cost, "wasted": wasted, "waiting": waiting, "travel": travel}
+
 
 metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
-        """Évalue la configuration en lançant la simulation."""
-        dfs = sim.result 
-        kpis = Kpis(dfs, cfg)
-        functional_cost = kpis.calculate_functional_kpis()
-        cost = functional_cost["Combined Total Cost"]
-        wasted_production_over_time = kpis.wasted_production()
-        waiting_time = kpis.get_total_waiting_time()
-        factory_filling_rate = kpis.factory_filling_rate() # want to maximize, so we will use -factory_filling_rate
-        metrics = { k: v for k, v in zip(metrics_keys,
-                                         [cost, wasted_production_over_time, waiting_time, 1-factory_filling_rate])}
-        return pd.DataFrame(metrics, index=[0])
 
-def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None]:
+
+def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
+    """Évalue la configuration en lançant la simulation."""
+    dfs = sim.result
+    kpis = Kpis(dfs, cfg)
+    functional_cost = kpis.calculate_functional_kpis()
+    cost = functional_cost["Combined Total Cost"]
+    wasted_production_over_time = kpis.wasted_production()
+    waiting_time = kpis.get_total_waiting_time()
+    factory_filling_rate = kpis.factory_filling_rate()  # want to maximize, so we will use -factory_filling_rate
+    metrics = {
+        k: v
+        for k, v in zip(
+            metrics_keys,
+            [cost, wasted_production_over_time, waiting_time, 1 - factory_filling_rate],
+        )
+    }
+    return pd.DataFrame(metrics, index=[0])
+
+
+def get_all_scenarios(path: str, ignore_cte=False) -> Generator[tuple[Path, dict], None, None]:
     """
     Récupère tous les scénarios à partir d'un fichier YAML.
     """
@@ -141,10 +158,14 @@ def get_all_scenarios(path: str, ignore_cte=False) -> Generator[dict, None, None
         if ignore_cte:
             for key in ignore_keys:
                 config.pop(key, None)
-        if path.is_file() and path.suffix == '.yaml':
+        if path.is_file() and path.suffix == ".yaml":
+            config["name"] = path.stem
+            if not ignore_cte:
+                config["general"]["num_period"] = 2_000
             yield path, config
 
-def evaluate_single_scenario(scenario: dict, return_score: bool=True) -> pd.DataFrame:
+
+def evaluate_single_scenario(scenario: dict, return_score: bool = True) -> pd.DataFrame:
     """Evaluate a scenario.
 
     Args:
@@ -158,33 +179,45 @@ def evaluate_single_scenario(scenario: dict, return_score: bool=True) -> pd.Data
     sim.run()
     result = calculate_performance_metrics(scenario, sim)
     if return_score:
-        if not hasattr(evaluate_single_scenario, 'normalize'):
+        if not hasattr(evaluate_single_scenario, "normalize"):
             evaluate_single_scenario.normalize = Normalizer()
         norm_df = evaluate_single_scenario.normalize(result)
-        result["score"] = evaluate_single_scenario.normalize.compute_score(norm_df)   
+        result["score"] = evaluate_single_scenario.normalize.compute_score(norm_df)
     return result
 
 
+metrics_keys: list[str] = [
+    "cost",
+    "wasted_production_over_time",
+    "waiting_time",
+    "underfill_rate",
+]
+metrics_weight: list[int] = [20, 20, 10, 15]
 
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
-metrics_weight = [20, 20, 10, 15]
+
 class Normalizer:
-    """Normalize KPI values.
-    """
-    def __init__(self, kpis_boundaries: pd.DataFrame=None,
-                metrics_keys=metrics_keys, metrics_weight=metrics_weight,
-                ):
+    """Normalize KPI values."""
+
+    def __init__(
+        self,
+        kpis_boundaries: pd.DataFrame = None,
+        metrics_keys=metrics_keys,
+        metrics_weight=metrics_weight,
+    ):
         self.metrics_keys = metrics_keys
         self.metrics_weight = metrics_weight
         if kpis_boundaries:
             self.kpis_boundaries = kpis_boundaries
         else:
             from optimizer.boundaries import get_kpis_boundaries
+
             self.kpis_boundaries = get_kpis_boundaries()
 
     def normalize(self, kpis_list: pd.DataFrame, clip: bool = False) -> pd.DataFrame:
         """Normalize the KPIs using the provided boundaries."""
-        normalized = (kpis_list - self.kpis_boundaries["min"]) / (self.kpis_boundaries["max"] - self.kpis_boundaries["min"])
+        normalized = (kpis_list - self.kpis_boundaries["min"]) / (
+            self.kpis_boundaries["max"] - self.kpis_boundaries["min"]
+        )
         if clip:
             return normalized.clip(0, 1)
         return normalized
@@ -197,65 +230,87 @@ class Normalizer:
     def __call__(self, *args, **kwargs):
         return self.normalize(*args, **kwargs)
 
+
 ########## Usefull classes ##########
-# Config builder for simulation 
+# Config builder for simulation
 class ConfigBuilderFromSolution:
-    def __init__(self, base_config, sol=None):
+    def __init__(self, base_config: dict, boundaries):
         self.base_config = base_config
         self.map_ship_initial_destination = {0: "Le Havre", 1: "Rotterdam", 2: "Bergen"}
         self.map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
-        if sol is not None:
-                self.cfg = self.build(sol)
-        else:
-                self.cfg = None
+        self.boundaries = boundaries
 
-
-    def get_config_from_solution(self, sol:dict, algorithm:str, *args, **kwargs) -> dict:
+    def get_config_from_solution(self, sol: dict, algorithm: str, *args, **kwargs) -> dict:
         """
         Build a simulation config from a solution dict.
         """
         if algorithm in ("heuristic", "HeuristicSolver"):
             return self.build_heuristic(sol)
-        else :
+        else:
             return self.build(sol)
-        
 
-    def _get_storage_name(self, sol, i):
+    def predict_cost(self, x: int, X: tuple, Y: tuple) -> int:
+        """Predict the cost for a given input.
+
+        Args:
+            x (int): value to predict
+            X (tuple): bounds: min[0]/max[1] of tank or ship caps
+            Y (tuple): bound: min[0]/max[1] of cost for tank or ship
+
+        Returns:
+            int: cost prediction
+        """
+        pente = (Y[1] - Y[0]) / (X[1] - X[0])
+        ordonnee = Y[0] - pente * X[0]
+        return pente * x + ordonnee
+
+    def _get_storage_name(self, sol: dict, i: int) -> str:
         if sol["use_Bergen"] and sol["use_Rotterdam"]:
             return ["Bergen", "Rotterdam"][i]
         elif sol["use_Bergen"]:
             return "Bergen"
         elif sol["use_Rotterdam"]:
             return "Rotterdam"
-        
-    def build(self, sol:dict)->dict:
+
+    def build(self, sol: dict) -> dict:
         cfg = deepcopy(self.base_config)
-        base_factory = cfg["factory"]
-        cfg["factory"]["number_of_tanks"] = sol.get("number_of_tanks", base_factory["number_of_tanks"])
-        cfg["factory"]["capacity_max"] = sol.get("capacity_max_factory", base_factory["capacity_max"])
-        cfg["factory"]["docks"] = sol.get("factory_docks", base_factory["docks"]) 
+        cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
+        cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)
+        X = (self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"])
+        Y = (
+            self.boundaries.factory_cost_per_tank["min"],
+            self.boundaries.factory_cost_per_tank["max"],
+        )
+        cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
+        cfg["factory"]["intial_capacity"] = 0
 
         storage = deepcopy(cfg["storages"][0])
-        storage["name"] = "" 
+        storage["name"] = ""
+        storage["capacity_max"] = sol["storage_caps"]
         cfg["storages"].clear()
-        for i in range(sol.get("num_storages", len(cfg["storages"]))):
+        for i in range(sol["num_storages"]):
             cfg["storages"].append(deepcopy(storage))
             cfg["storages"][i]["name"] = self._get_storage_name(sol, i)
 
         # add initial port
+        X = (self.boundaries.ship_capacity["min"], self.boundaries.ship_capacity["max"])
+        Y = (self.boundaries.ship_cost["min"], self.boundaries.ship_cost["max"])
         ship = deepcopy(cfg["ships"][0])
         cfg["ships"].clear()
         for i in range(sol["num_ship"]):
             cfg["ships"].append(deepcopy(ship))
-            cfg["ships"][i]["name"] = f"Ship {i+1}"
-            cfg["ships"][i]["init"]["destination"] = self.map_ship_initial_destination[sol[f"init{i+1}_destination"]]
-            cfg["ships"][i]["fixed_storage_destination"] = self.map_ship_fixed_storage_destination[sol[f"fixed{i+1}_storage_destination"]]
-            cfg["ships"][i]["capacity_max"] = sol[f"ship_capacity"]
-            cfg["ships"][i]["speed_max"] = sol[f"ship_speed"]  
+            cfg["ships"][i]["name"] = f"Ship {i + 1}"
+            cfg["ships"][i]["init"]["destination"] = self.map_ship_initial_destination[sol[f"init{i + 1}_destination"]]
+            cfg["ships"][i]["fixed_storage_destination"] = self.map_ship_fixed_storage_destination[
+                sol[f"fixed{i + 1}_storage_destination"]
+            ]
+            cfg["ships"][i]["capacity_max"] = sol["ship_capacity"]
+            cfg["ships"][i]["speed_max"] = sol["ship_speed"]
+            cfg["ships"][i]["ship_buying_cost"] = self.predict_cost(sol["ship_capacity"], X, Y)
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
 
-    def build_heuristic(self, sol:dict) -> dict:
+    def build_heuristic(self, sol: dict) -> dict:
         """Build surrogate config from solution."""
         cfg = deepcopy(self.base_config)
         for i in range(sol["num_ship"]):
@@ -264,69 +319,14 @@ class ConfigBuilderFromSolution:
         cfg["general"]["number_of_ships"] = sol["num_ship"]
         return cfg
 
-    def decode_and_repair(self, x, max_ships):
-        """
-        Decode the decision vector x into a solution dict and enforce storage consistency.
-        """
-        sol = {}
-        idx = 0
-        # High-level variables
-        sol['num_storages']       = int(x[idx]); idx += 1
-        sol['use_Bergen']         = int(x[idx]); idx += 1
-        sol['use_Rotterdam']      = int(x[idx]); idx += 1
-        sol['num_ship']           = int(x[idx]); idx += 1
-        sol['ship_capacity']      = int(x[idx]); idx += 1
-        sol['ship_speed']         = int(x[idx]); idx += 1
-        # Per-ship destinations
-        for i in range(max_ships):
-            sol[f'init{i+1}_destination'] = int(x[idx]); idx += 1
-        for i in range(max_ships):
-            sol[f'fixed{i+1}_storage_destination'] = int(x[idx]); idx += 1
 
-        # Repair storage flags based on num_storages and per-ship destinations
-        if sol['num_storages'] >= 2:
-            sol['use_Bergen']    = 1
-            sol['use_Rotterdam'] = 1
-        else:
-            flags = [sol[f'fixed{i+1}_storage_destination'] for i in range(max_ships)]
-            if any(f == 1 for f in flags):
-                sol['use_Bergen']    = 1
-                sol['use_Rotterdam'] = 0
-            else:
-                sol['use_Bergen']    = 0
-                sol['use_Rotterdam'] = 1
-            sol['num_storages'] = sol['use_Bergen'] + sol['use_Rotterdam']
-
-        return sol
-
-# Logger for multiprocessing (base logging python package throw error while multiprocessing)
-class LoggerForMultiprocessing:
-    """
-    Substitue à un logger pour les environnements de multiprocessing.
-    Logger classique ne support pas le multiprocessing.
-    """
-
-    def debug(self, message: str):
-        print("DEBUG:" + message)
-
-    def info(self, message: str):
-        print("INFO: " + message)
-
-    def error(self, message: str):
-        print("ERROR: " + message)
-
-    def warning(self, message: str):
-        print("WARNING: " + message)
-    
-    def critical(self, message: str):
-        print("CRITICAL: " + message)
-    
 # No profiler class (cprofile)
 class NoProfiler:
     """
     A no-op profiler class that does nothing.
     This is used when profiling is disabled.
     """
+
     def enable(self):
         pass
 
