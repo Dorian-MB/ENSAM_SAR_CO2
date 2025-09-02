@@ -62,7 +62,7 @@ class PGAnime:
         anime_cfg=AnimeCfg(),
         Simulation=Simulation,
         **kw,
-    ):
+    ) -> None:  
         """
         Initialise l’animation à partir de la configuration de simulation.
 
@@ -108,14 +108,14 @@ class PGAnime:
         # UI controls
         # Slider pour la vitesse de simulation
         slider_width, slider_height = 200, 10
-        self.slider_rect = pygame.Rect(0, 0, slider_width, slider_height)  # Position (x, y) def dans 'dessine_UI'
+        self.slider_rect = pygame.Rect(left=0, top=0, width=slider_width, height=slider_height)  # Position (x, y) def dans 'dessine_UI'
         slider_knob_width = 10
-        self.knob_rect = pygame.Rect(0, 0, slider_knob_width, slider_height)
+        self.knob_rect = pygame.Rect(left=0, top=0, width=slider_knob_width, height=slider_height)
         self.dragging = False
 
         # Bouton pause
         self.paused = True
-        self.pause_button_rect = pygame.Rect(10, 40, 100, 30)
+        self.pause_button_rect = pygame.Rect(left=10, top=40, width=100, height=30)
 
         # bouton pour afficher/masquer les KPIs
         self.kpi_button_rect = pygame.Rect(
@@ -151,19 +151,19 @@ class PGAnime:
 
     def _init_surfaces(self):
         """Crée les surfaces Pygame pour l’UI, l’animation et les KPIs."""
-        self.ui_surf = pygame.Surface((self.WIDTH, self.ui_height), pygame.SRCALPHA)  # UI fixe
-        self.anim_surf = pygame.Surface((self.WIDTH, self.anim_height), pygame.SRCALPHA)
+        self.ui_surf = pygame.Surface(size=(self.WIDTH, self.ui_height), flags=pygame.SRCALPHA)  # UI fixe
+        self.anim_surf = pygame.Surface(size=(self.WIDTH, self.anim_height), flags=pygame.SRCALPHA)
         # todo anim_surf.subsurface (width fix /p ) pour une zone dedié a l'animation ? cplipping integré
         self._set_kpis_surface()
 
-    def _init_port_position(self):
+    def _init_port_position(self) -> None:
         if self.random_pos:
             self._set_random_port_positions()
         else:
             self._set_fixed_port_positions()
 
     @staticmethod
-    def _get_image(path, size):
+    def _get_image(path, size) -> pygame.Surface:
         img = pygame.image.load(path).convert_alpha()
         img = pygame.transform.scale(img, (size, size))
         return img

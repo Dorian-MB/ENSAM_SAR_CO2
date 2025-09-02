@@ -1,18 +1,24 @@
+from math import e
 from pathlib import Path
+from re import S
 import sys
 from pprint import pprint
 
-if __name__ == "__main__":
-    sys.path.insert(0, str(Path.cwd()))
 
+if __name__ == "__main__":
+    sys.path.insert(0, str(object=Path.cwd()))
+
+from matplotlib.pylab import f
+from matplotlib.pyplot import cla
 import numpy as np
 import pandas as pd
+
+import dill
 from pymoo.core.problem import ElementwiseProblem, Problem
 from pymoo.core.variable import Real, Integer, Choice
 from pymoo.core.repair import Repair
 from pymoo.core.sampling import Sampling
 from pymoo.operators.sampling.rnd import FloatRandomSampling
-
 # from pymoo.operators.sampling.rnd import IntegerRandomSampling
 # from pymoo.operators.mutation.pm import PolynomialMutation
 # from pymoo.operators.crossover.sbx import SBX
@@ -20,8 +26,9 @@ from pymoo.algorithms.moo.nsga3 import NSGA3
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.algorithms.base.genetic import GeneticAlgorithm
 from pymoo.util.reference_direction import UniformReferenceDirectionFactory
-from pymoo.termination import get_termination
+from pymoo.termination.max_gen import MaximumGenerationTermination
 from pymoo.optimize import minimize
+from pymoo.core.result import Result
 from pymoo.core.problem import StarmapParallelization, LoopedElementwiseEvaluation
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from multiprocessing import Pool, Manager
@@ -35,7 +42,6 @@ from optimizer.utils import (
 )
 from eco2_normandy.simulation import Simulation
 from eco2_normandy.logger import Logger
-from KPIS.utils import compute_dynamic_bounds
 from colorama import Fore
 
 metrics_keys = Normalizer().metrics_keys
@@ -47,11 +53,13 @@ class MixedVariableSampling(Sampling):
     Generates samples respecting the semantic of each variable type.
     """
 
-    def __init__(self, problem: Problem):
+    def __init__(self, problem: Problem=None):
         super().__init__()
         self.problem = problem
 
     def _do(self, problem: Problem, n_samples: int, **kwargs) -> np.ndarray:
+        if self.problem is None:
+            self.problem = problem
         # Generate samples for each variable type
         X = np.zeros((n_samples, problem.n_var), dtype=int)
 
@@ -153,29 +161,55 @@ class ShipConsistencyRepair(Repair):
         return X
 
 
+class SerializableStarmapRunner(StarmapParallelization): # heritage pas obligatoire
+    def __init__(self, n_processes=4):
+        self.n_processes = n_processes
+        self._pool = None
+    
+    def __call__(self, f, X):
+        # Créer le pool à la demande
+        if self._pool is None:
+            self._pool = Pool(self.n_processes)
+        return list(self._pool.starmap(f, [[x] for x in X]))
+    
+    def __getstate__(self):
+        # Pour la sérialisation, ne pas inclure le pool
+        state = self.__dict__.copy()
+        state['_pool'] = None
+        return state
+    
+    def __setstate__(self, state):
+        # Après désérialisation, le pool sera recréé à la demande
+        self.__dict__.update(state)
+    
+    def close(self):
+        if self._pool:
+            self._pool.close()
+            self._pool = None
+
+
 class SimulationProblem(ElementwiseProblem):
     """Problem definition for the simulation optimization using a genetic algorithm."""
 
     def __init__(
         self,
         base_config: dict,
-        boundaries: ConfigBoundaries,
+        boundaries: ConfigBoundaries = None,
         kpis_list: list | None = None,
         logger=None,
-        mertrics_keys: list = metrics_keys,
         caps_steps: int = 1000,
         elementwise_runner=None,
-    ):
+    ) -> None:
         """Initialize the simulation problem, as a pymoo ElementwiseProblem with discrete variables."""
         self.log = logger or Logger()
         self.base_config = base_config
-        self.boundaries = boundaries
-        self.max_ships = boundaries.max_num_ships
+        self.boundaries = boundaries or ConfigBoundaries()
+        self.max_ships = self.boundaries.max_num_ships
         self.caps_steps = caps_steps
         # default weights from Normalizer for consistency across modules
         self.weights = Normalizer().metrics_weight
-        self.metrics_keys = mertrics_keys
-        self.cfg_builder = ConfigBuilderFromSolution(base_config, boundaries)
+        self.metrics_keys = Normalizer().metrics_keys
+        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
         self.kpis_list = kpis_list
 
         # Define variables with proper types and automatic steps
@@ -183,31 +217,31 @@ class SimulationProblem(ElementwiseProblem):
         self.var_names = []
 
         # Core variables with discrete types
-        self.variables["num_storages"] = Integer(bounds=(1, boundaries.max_num_storages))
+        self.variables["num_storages"] = Integer(bounds=(1, self.boundaries.max_num_storages))
         self.variables["use_Bergen"] = Choice(options=[0, 1])
         self.variables["use_Rotterdam"] = Choice(options=[0, 1])
-        self.variables["num_ship"] = Integer(bounds=(1, boundaries.max_num_ships))
-        self.variables["ship_speed"] = Integer(bounds=(boundaries.ship_speed["min"], boundaries.ship_speed["max"]))
+        self.variables["num_ship"] = Integer(bounds=(1, self.boundaries.max_num_ships))
+        self.variables["ship_speed"] = Integer(bounds=(self.boundaries.ship_speed["min"], self.boundaries.ship_speed["max"]))
         self.variables["number_of_tanks"] = Integer(
-            bounds=(boundaries.factory_tanks["min"], boundaries.factory_tanks["max"])
+            bounds=(self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"])
         )
 
         # Variables with automatic steps
         self.variables["ship_capacity"] = Integer(
             bounds=(
-                boundaries.ship_capacity["min"] // caps_steps,
-                boundaries.ship_capacity["max"] // caps_steps,
+                self.boundaries.ship_capacity["min"] // caps_steps,
+                self.boundaries.ship_capacity["max"] // caps_steps,
             )
         )
         self.variables["storage_caps"] = Integer(
             bounds=(
-                boundaries.storage_caps["min"] // caps_steps,
-                boundaries.storage_caps["max"] // caps_steps,
+                self.boundaries.storage_caps["min"] // caps_steps,
+                self.boundaries.storage_caps["max"] // caps_steps,
             )
         )
 
         # Variables per ship (destinations) with explicit choices
-        for i in range(boundaries.max_num_ships):
+        for i in range(self.boundaries.max_num_ships):
             self.variables[f"init{i + 1}_destination"] = Choice(options=[0, 1, 2])  # Le Havre, Rotterdam, Bergen
             self.variables[f"fixed{i + 1}_storage_destination"] = Choice(options=[0, 1])  # Rotterdam, Bergen
 
@@ -297,28 +331,28 @@ class SimulationProblem(ElementwiseProblem):
         x_dict = self._array_to_dict(x)
 
         # Build simulation config directly from variable dict
-        cfg = self.cfg_builder.build(x_dict)
-        sim = self._run_simulation(cfg)
-        metrics = calculate_performance_metrics(cfg, sim, metrics_keys=self.metrics_keys)
+        cfg = self.cfg_builder.build(sol=x_dict)
+        sim = self._run_simulation(cfg=cfg)
+        metrics = calculate_performance_metrics(cfg=cfg, sim=sim, metrics_keys=self.metrics_keys)
 
         # Assign objectives
         objectives = [metrics[k].iloc[0] for k in self.metrics_keys]
         self.kpis_list.append(metrics)
         out["F"] = objectives
-
+        
 
 class GAModel:
     def __init__(
         self,
         base_config: dict,
-        pop_size: int = 20,
-        n_gen: int = 10,
-        algorithm: str = "NSGA3",
+        pop_size: int| None = 20,
+        n_gen: int| None = 10,
+        algorithm_name: str| None = "NSGA3",
         verbose: bool | int = True,
-        logger=None,
+        logger:Logger|None=None, 
         parallelization: bool = False,
-        n_pool: int = 4,
-        caps_steps: int = 1000,
+        n_pool: int| None = 4,
+        caps_steps: int| None = 1000,
         *args,
         **kwargs,
     ) -> None:
@@ -326,7 +360,8 @@ class GAModel:
         self.pop_size = pop_size
         self.n_gen = n_gen
         self.n_obj = 4
-        self.algorithm_name = algorithm
+        self.algorithm_name = algorithm_name
+        self.algorithm = None
         self.caps_steps = caps_steps
         self.verbose = verbose
         self.log = logger or Logger()
@@ -338,12 +373,15 @@ class GAModel:
         self.solutions = []
         self.scores = []
         self.istrain = False
+        self.from_dill = False
 
         self.boundaries = ConfigBoundaries(logger=self.log, verbose=0)
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
         self.normalize = Normalizer()
+        self.problem = SimulationProblem(base_config, self.boundaries)
+        self.metrics_keys = self.normalize.metrics_keys
 
-    def reset(self, base_config: dict):
+    def reset(self, base_config: dict) -> None:
         self.res = None
         self.solutions = []
         self.scores = []
@@ -373,10 +411,9 @@ class GAModel:
         valid_sizes = self._calculate_valid_population_sizes(self.n_obj)
         return sorted([size[1] for size in valid_sizes])
 
-    def _get_algorithm(self, sampling: Sampling = None) -> GeneticAlgorithm:
+    def _get_algorithm(self, repair:Repair, sampling: Sampling = None) -> GeneticAlgorithm:
         # ? Check algo: https://pymoo.org/algorithms/list.html
         # Create ship consistency repair operator
-        repair = ShipConsistencyRepair(self.boundaries.max_num_ships)
         if sampling is None:
             sampling = FloatRandomSampling()
         if self.algorithm_name == "NSGA3":
@@ -407,16 +444,14 @@ class GAModel:
 
     def solve(self, *args, **kwargs) -> None:
         if self.parallelization:
-            pool = Pool(self.n_pool)
-            runner = StarmapParallelization(pool.starmap)
+            runner = SerializableStarmapRunner(self.n_pool)
             kpis_list = self.manager.list()
             if self.verbose:
                 self.log.info(f"Using parallelization with {self.n_pool} processes.")
         else:
             if self.verbose:
                 self.log.info("Using single-threaded evaluation.")
-            pool = None
-            runner = LoopedElementwiseEvaluation()  # lambda f, X: [f(x) for x in X]
+            runner = LoopedElementwiseEvaluation()
             kpis_list = []
 
         self.problem = SimulationProblem(
@@ -428,42 +463,46 @@ class GAModel:
             logger=self.log,
         )
 
-        sampling = MixedVariableSampling(self.problem)
-        self.algorithm = self._get_algorithm(sampling)
+        if not self.from_dill:
+            repair = ShipConsistencyRepair(self.boundaries.max_num_ships)
+            sampling = MixedVariableSampling()
+            self.algorithm = self._get_algorithm(repair, sampling)
 
-        self.res = self._minimize(self.algorithm, pool)
+        self._minimize(self.algorithm, runner)
+
         if self.parallelization:
-            pool.close()
-            pool.join()
-            self.problem.kpis_list = list(kpis_list)  # Convertir la liste partagée en liste normale
+            self.problem.kpis_list = list(kpis_list)
         self._set_results()
 
-    def _minimize(self, algo: GeneticAlgorithm, pool):
+    def _minimize(self, algo: GeneticAlgorithm, runner) -> Result:
         """
         Minimize the problem using the given algorithm.
         handle errors and parallelization. close the pool even if an error occurs.
         """
         try:
-            termination = get_termination("n_gen", self.n_gen)
-            self.res = minimize(self.problem, algo, termination, seed=1, verbose=self.verbose)
+            self.algorithm.termination = MaximumGenerationTermination(self.n_gen)
+
+            self.res = minimize(self.problem, algo, seed=1, verbose=self.verbose, copy_algorithm=False, save_history=True,)
             self.istrain = True
+            
         except Exception as e:
             self.log.error(Fore.RED + f"Error occurred during minimization `GASolver`: {e}" + Fore.RESET)
             raise e
         finally:
             if self.parallelization:
-                pool.close()
+                runner.close()
         return self.res
 
     def _set_results(self) -> None:
         if self.istrain is False:
             raise RuntimeError("No results available. Call solve() first.")
 
-        X = self.res.X[self.front_idx]
-        F = self.res.F[self.front_idx]
+        front_idx = self._front_idx
+        X = self.res.X[front_idx]
+        F = self.res.F[front_idx]
         F = pd.DataFrame(
             F,
-            columns=self.problem.metrics_keys,
+            columns=self.metrics_keys,
             index=[f"solution_{i}" for i in range(len(F))],
         )  # index important in case of singleton
         self.scores = F.copy()
@@ -482,25 +521,21 @@ class GAModel:
         self.solutions = pd.DataFrame(data, index=idx)
         self.solutions.index.name = "solution_id"
 
+        self.pareto_front = pd.DataFrame(
+                                F,
+                                columns=self.metrics_keys,
+                                index=[f"solution_{i}" for i in range(len(F))],
+                            )
+        self.pareto_front.index.name = "solution_id"
+
     @property
-    def front_idx(self) -> np.ndarray:
+    def _front_idx(self) -> np.ndarray:
         if not self.istrain:
             raise RuntimeError("No results available. Call solve() first.")
         F = self.res.F
         nds = NonDominatedSorting()
         front = nds.do(F, only_non_dominated_front=True)
         return front
-
-    @property
-    def pareto_front(self) -> pd.DataFrame:
-        if not self.istrain:
-            raise RuntimeError("No results available. Call solve() first.")
-        F = self.res.F[self.front_idx]
-        return pd.DataFrame(
-            F,
-            columns=self.problem.metrics_keys,
-            index=[f"solution_{i}" for i in range(len(F))],
-        )
 
     @property
     def best_score(self) -> pd.Series:
@@ -541,9 +576,12 @@ class GAModel:
             return {}
         name = f"{self.algorithm_name}"
         return {
-            f"solutions_{name}": self.solutions,
-            f"scores_{name}": self.scores,
-            f"pareto_{name}": self.pareto_front,
+            f"{name}_fitness": self.res.F,
+            f"{name}_solutions": self.res.X,
+            f"{name}_pareto_front": self.pareto_front,
+            f"{name}_all_solutions": self.solutions,
+            f"{name}_all_scores": self.scores,
+            f"model_{name}": self.algorithm,
         }
 
     def evaluate(self, cfg: dict, clip: bool = True) -> pd.DataFrame:
@@ -568,6 +606,86 @@ class GAModel:
         metrics["score"] = self.normalize.compute_score(normed_metrics)
         return metrics
 
+    @classmethod
+    def load(cls, sol_dir_path: str|Path, base_config:dict, 
+            pop_size: int| None = 20,
+            n_gen: int| None = 10,
+            algorithm_name:str|None=None,
+            verbose: bool | int = True,
+            logger:Logger|None=None, 
+            parallelization: bool = False,
+            n_pool: int| None = 4,
+            caps_steps: int| None = 1000,
+             )  -> "GAModel":
+        """Load solutions from a NPY file"""
+        log = logger or Logger()
+        if isinstance(sol_dir_path, str):
+            sol_dir_path = Path(sol_dir_path)
+        if not sol_dir_path.exists():
+            log.error(Fore.RED + f"Solution {sol_dir_path} not found." + Fore.RESET)
+            raise FileNotFoundError(f"Solution {sol_dir_path} not found.")
+        if not sol_dir_path.is_dir():
+            raise NotADirectoryError(f"Solution path {sol_dir_path} is not a directory.")
+
+        npy_files = list(sol_dir_path.glob("*.npy"))
+        if not npy_files or len(npy_files) != 2:
+            log.error(Fore.RED + f"No NPY files found in {sol_dir_path}. Needed 2 NPY files, got {len(npy_files)}" + Fore.RESET)
+            raise FileNotFoundError(f"No NPY files found in {sol_dir_path}.")
+        
+        # Load NPY files
+        X = None
+        F = None
+
+        for npy in npy_files:
+            df = np.load(str(npy))
+            if "solution" in npy.name:
+                X = df
+            elif "fitness" in npy.name:
+                F = df
+            else:
+                log.error(Fore.RED + f"Unknown NPY file: {npy.name}" + Fore.RESET)
+                raise ValueError(f"Unknown NPY file: {npy.name}")
+
+        # Verify all files were loaded
+        if X is None or F is None :
+            missing = []
+            if X is None: missing.append("solutions")
+            if F is None: missing.append("fitness")
+            raise ValueError(f"Missing required NPY files: {missing}")
+
+        dill_file = list(sol_dir_path.glob("*.dill"))
+        if not dill_file:
+            log.error(Fore.RED + f"No DILL files found in {sol_dir_path}." + Fore.RESET)
+            raise FileNotFoundError(f"No DILL files found in {sol_dir_path}.")
+        with open(dill_file[0], "rb") as f:
+            algorithm = dill.load(f)
+
+        log.info(Fore.GREEN + f"Model Loaded from {Fore.LIGHTCYAN_EX}{sol_dir_path.resolve()}" + Fore.RESET)
+        
+        # Create instance with loaded data
+        instance = cls(
+            base_config=base_config,
+            pop_size=pop_size,
+            n_gen=n_gen,
+            algorithm_name=algorithm_name or ("NSGA3" if "NSGA3" in str(sol_dir_path.name) else "NSGA2"),
+            verbose=verbose,
+            logger=log,
+            parallelization=parallelization,
+            n_pool=n_pool,
+            caps_steps=caps_steps
+        )
+        
+        # Set loaded data
+        instance.algorithm = algorithm
+        instance.res = Result()
+        instance.res.X = X
+        instance.res.F = F
+        instance.istrain = True
+        instance.from_dill = True
+        instance._set_results()
+        
+        return instance
+
 
 if __name__ == "__main__":
     # example usage
@@ -577,5 +695,4 @@ if __name__ == "__main__":
     base_cfg = get_simlulation_variable(path)[0]
     solver = GAModel(base_cfg, pop_size=10, n_gen=2, parallelization=True)
     res = solver.solve()
-    # for r in solver.get_results():
-    #     print(r)
+
