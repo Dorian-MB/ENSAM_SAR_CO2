@@ -113,6 +113,8 @@ class ConfigBoundaries:
             )
             init_configs(scenarios_path)
             self._boundaries = get_boundaries()
+            with open("saved/boundaries.yaml", "w", encoding="utf-8") as f:
+                yaml.dump(self._boundaries, f, allow_unicode=True, sort_keys=True)
 
         self.factory_caps_per_tanks = 5700
 
@@ -188,22 +190,24 @@ class KpisBoundaries:
                 )
             self.kpis_boundaries = self._compute_and_save_kpis_boundaries()
 
+
     def _compute_and_save_kpis_boundaries(self):
         """
         Compute the boundaries for KPIs from the scenarios.
         """
         scenarios = get_all_scenarios("scenarios/")
         self._kpis_list = []
-        for path, config in scenarios:
+        for i, (path, config) in enumerate(scenarios):
             config["general"]["num_period"] = 2000  # Set to 2000 for reproducibility and stable kpis results
             sim = Simulation(config, verbose=False)
             sim.run()
-            self._kpis_list.append(calculate_performance_metrics(config, sim))
+            self._kpis_list.append(calculate_performance_metrics(config, sim).to_dict(orient="records")[0])
             if self.verbose > 1:
-                self.log.info(Fore.CYAN + f"{path.name}" + Fore.RESET)
+                self.log.info(Fore.CYAN + str(i) + f" {path.name}" + Fore.RESET)
                 display(pd.DataFrame(self._kpis_list[-1], index=[0]))
                 print()
 
+        print(self._kpis_list)
         bounds = compute_dynamic_bounds(self._kpis_list)
         bounds_df = pd.DataFrame(bounds, index=["min", "max"])
         bounds_df.index.name = "bounds"
@@ -225,17 +229,12 @@ if __name__ == "__main__":
     from pprint import pprint
     from IPython.display import display
 
-    # init_configs()
+    init_configs()
 
-    # boundaries = get_boundaries()
-    # with open("saved/boundaries.yaml", "w", encoding="utf-8") as f:
-    #     yaml.dump(boundaries, f, allow_unicode=True, sort_keys=True)
-    # print("\nLes bornes ont été sauvegardées dans boundaries.yaml")
-
-    # unique_values = get_all_values()
-    # with open("saved/boundaries_range.yaml", "w", encoding="utf-8") as f:
-    #     yaml.dump(unique_values, f, allow_unicode=True, sort_keys=True)
-    # print("\nLes valeurs numériques uniques ont été sauvegardées dans boundaries_range.yaml")
+    unique_values = get_all_values()
+    with open("saved/boundaries_range.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(unique_values, f, allow_unicode=True, sort_keys=True)
+    print("\nLes valeurs numériques uniques ont été sauvegardées dans boundaries_range.yaml")
 
     cfg = ConfigBoundaries()
     print(cfg)

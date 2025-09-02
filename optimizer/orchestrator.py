@@ -6,6 +6,7 @@ from pathlib import Path
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
 
+import dill
 import numpy as np
 import pandas as pd
 from colorama import Fore
@@ -34,13 +35,13 @@ class OptimizationOrchestrator:
         verbose: int | bool = 1,
         enable_cprofile: bool = False,
     ) -> None:
-        self.log = logger or Logger()
+        self.log = logger or (model.log if model.log else Logger())
         self.model = model
         self.verbose = verbose
         self.enable_cprofile = enable_cprofile
         self.profiler = None
         self.boundaries = ConfigBoundaries(verbose=0)
-        self.history = {}
+        self.histories = {}
 
     def compare_solution_to_base_config(self, solution: dict = None) -> None:
         if solution is None:
@@ -261,8 +262,8 @@ class OptimizationOrchestrator:
                 self.log_score()
             if print_diffs:
                 self.compare_solution_to_base_config()
-            self.save_solution(dir_=f"./saved/{phase}", save_name=f"_{phase}")
-            self.history[phase] = {
+            self.save_model(main_dir=f"./saved", save_dir=f"{phase}", save_name=f"_{phase}")
+            self.histories[phase] = {
                 "scores": self.model.best_score,
                 "solution": self.model.best_solution,
                 "kpis": self.get_kpis(),
@@ -270,12 +271,12 @@ class OptimizationOrchestrator:
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
 
     @property
-    def scores_per_phases(self):
-        if self.history == {}:
+    def scores_per_phases(self):# -> dict:
+        if self.histories == {}:
             raise ValueError("No scores computed, empty history.")
-        return {phase: history["scores"]["score"] for phase, history in self.history.items()}
+        return {phase: history["scores"]["score"] for phase, history in self.histories.items()}
 
-    def get_kpis(self):
+    def get_kpis(self) -> Kpis:
         if self.model.istrain is False:
             raise ValueError("model not trained yet, `Optimizer.optimize()`")
         
@@ -283,25 +284,45 @@ class OptimizationOrchestrator:
         kpis = Kpis(sim.result, cfg)
         return kpis
 
+    def plots_kpis(self, kpis:Kpis | int | None = None) -> None:
+        """Plot the KPIs.
+        Defaults to the current KPIs model if none are provided.
+
+        Args:
+            kpis (Kpis | int | None, optional): The KPIs to plot. if int use phase history. Defaults to None.
+        """
+        if kpis is None:
+            kpis = self.get_kpis()
+        elif isinstance(kpis, int):
+            kpis = [ history['kpis'] for i, history in enumerate(self.histories.values()) if i == kpis][-1]
+
+        for plot in kpis.generate_kpis_graphs():
+            plot.show()
+
     def log_score(self) -> None:
         """
         Log the score of the current best solution.
         """
         self.model.log_score()
 
-    def save_solution(self, dir_: str = "./saved/", save_name: str = "", index: bool = True) -> None:
+    def save_model(self, main_dir: str = "./saved/", save_dir: str = "model_files", save_name: str = "", index: bool = True) -> None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             raise ValueError("model not trained yet, `self.solve()`")
-        dir_ = Path(dir_)
-        dir_.mkdir(parents=True, exist_ok=True)
-        for name, df in self.model.data_to_saved().items():
-            if isinstance(df, pd.DataFrame):
-                df.to_csv(dir_ / f"{name + save_name}.csv", index=index)
+        main_dir = Path(main_dir) / save_dir
+        main_dir.mkdir(parents=True, exist_ok=True)
+        for name, data in self.model.data_to_saved().items():
+            if "model" in name:
+                with open(main_dir / f"{name + save_name}.dill", "wb") as f:
+                    dill.dump(data, f)
+            elif isinstance(data, pd.DataFrame):
+                data.to_csv(main_dir / f"{name + save_name}.csv", index=index)
+            elif isinstance(data, np.ndarray):
+                np.save(main_dir / f"{name + save_name}.npy", data)
             else:
                 self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
-        self.log.info(Fore.GREEN + "=== Résultats Sauvegardé ===" + Fore.RESET)
-        self.log.info(f"Result files saved in {Fore.CYAN + str(dir_.resolve()) + Fore.RESET} directory")
+        self.log.info(Fore.GREEN + "=== Resultats Sauvegarde ===" + Fore.RESET)
+        self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
 
     def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
         """
@@ -318,23 +339,54 @@ class OptimizationOrchestrator:
             solution, algorithm=algorithm or self.model.algorithm_name, *args, **kwargs
         )
 
-    def render_best_solution(self, *args, **kwargs):
+    def render_best_solution(self, *args, **kwargs) -> None:
         config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_solution(self, solution, *args, **kwargs):
+    def render_solution(self, solution, *args, **kwargs) -> None:
         config = self.build_config_from_solution(solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_heuristic_solution(self, solution: dict):
+    def render_heuristic_solution(self, solution: dict) -> None:
         config = self.build_config_from_solution(solution, mode="heuristic")
         self._run_animation(config)
 
-    def _run_animation(self, config: dict):
+    def _run_animation(self, config: dict) -> None:
         from GUI import PGAnime
 
         print(config)
         PGAnime(config).run()
+
+    def load_model(self, sol_dir_path: str | Path, base_config: dict, **kwargs) -> None:
+        """Load a pre-trained model from saved solutions.
+        
+        Args:
+            sol_dir_path: Path to directory containing the saved CSV files
+            base_config: Base configuration (optional, uses current if not provided)
+            **kwargs: Additional arguments passed to the model's load method
+        """
+
+        # Determine model type and load accordingly
+        if hasattr(self.model, 'algorithm_name'):  # GAModel
+            from optimizer.ga_model import GAModel
+            self.model = GAModel.load(
+                sol_dir_path=sol_dir_path,
+                base_config=base_config,
+                logger=self.log,
+                **kwargs
+            )
+        elif hasattr(self.model, 'solver'):  # CpModel
+            from optimizer.cp_model import CpModel
+            self.model = CpModel.load(
+                sol_dir_path=sol_dir_path,
+                base_config=base_config,
+                logger=self.log,
+                **kwargs
+            )
+        else:
+            raise ValueError("Unknown model type for loading")
+            
+        self.log.info(Fore.GREEN + f"Model loaded successfully from {sol_dir_path}" + Fore.RESET)
 
 
 if __name__ == "__main__":
@@ -375,13 +427,13 @@ if __name__ == "__main__":
     config["general"]["num_period"] = 2_000
 
     logger = Logger()
-    model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm="NSGA3")
+    model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm_name="NSGA3")
     # model = CpModel(config)
     optimizer = OptimizationOrchestrator(model=model, verbose=1, enable_cprofile=False)
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
     optimizer.optimize()
     optimizer.log_score()
-    optimizer.save_solution(dir_=str(saved_folder))
+    optimizer.save_model(main_dir=str(saved_folder))
 
     yesno = input("Do you want to visualize the best simulation? (y/n): ").strip().lower()
     if yesno == "y":
