@@ -25,6 +25,7 @@ from optimizer.compare_scenarios import print_diffs
 from optimizer.boundaries import ConfigBoundaries
 from optimizer.history_analyzer import NSGA3HistoryAnalyzer
 
+
 class OptimizationOrchestrator:
     """
     Base class for optimization algorithms.
@@ -269,16 +270,16 @@ class OptimizationOrchestrator:
 
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
 
-    def _save_history_in_cache(self, model_cache:str="last") -> None:
+    def _save_history_in_cache(self, model_cache: str = "last") -> None:
         self.histories[model_cache] = {
             "scores": self.model.best_score,
             "solution": self.model.best_solution,
             "kpis": self.get_kpis(),
             "res": self.model.res,
-            }
+        }
 
     @property
-    def scores_per_phases(self):# -> dict:
+    def scores_per_phases(self) -> dict:
         if self.histories == {}:
             raise ValueError("No scores computed, empty history.")
         return {phase: history["scores"]["score"] for phase, history in self.histories.items()}
@@ -286,12 +287,12 @@ class OptimizationOrchestrator:
     def get_kpis(self) -> Kpis:
         if self.model.istrain is False:
             raise ValueError("model not trained yet, `Optimizer.optimize()`")
-        
+
         sim, cfg = self.model.get_best_simulation()
         kpis = Kpis(sim.result, cfg)
         return kpis
 
-    def plots_kpis(self, kpis:Kpis | int | None = None) -> None:
+    def plots_kpis(self, kpis: Kpis | int | None = None) -> None:
         """Plot the KPIs.
         Defaults to the current KPIs model if none are provided.
 
@@ -302,13 +303,12 @@ class OptimizationOrchestrator:
             kpis = self.get_kpis()
         elif isinstance(kpis, int):
             # kpis = [history['kpis'] for i, history in enumerate(self.histories.values()) if i == kpis][-1]
-            kpis = list(self.histories.values())[kpis]['kpis']
+            kpis = list(self.histories.values())[kpis]["kpis"]
 
         for plot in kpis.generate_kpis_graphs():
             plot.show()
 
-    def plot_model_performance(self, res: Result|int = None) -> None:
-
+    def plot_model_performance(self, res: Result | int = None) -> None:
         # 1. Vérification des résultats
         if res is None:
             res = self.model.res
@@ -327,7 +327,7 @@ class OptimizationOrchestrator:
 
         # Détection de stagnation
         stagnation = analyzer.detect_stagnation(window_size=10, threshold=0.005)
-        if stagnation['stagnation_ratio'] > 0.3:
+        if stagnation["stagnation_ratio"] > 0.3:
             print("\n ATTENTION: Plus de 30% du temps en stagnation")
 
         # 4. visualisation complète
@@ -342,7 +342,9 @@ class OptimizationOrchestrator:
         """
         self.model.log_score()
 
-    def save_model(self, main_dir: str = "./saved/", save_dir: str = "model_files", save_name: str = "", index: bool = True) -> None:
+    def save_model(
+        self, main_dir: str = "./saved/", save_dir: str = "model_files", save_name: str = "", index: bool = True
+    ) -> None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             raise ValueError("model not trained yet, `self.solve()`")
@@ -363,7 +365,7 @@ class OptimizationOrchestrator:
 
     def load_model(self, sol_dir_path: str | Path, base_config: dict, **kwargs) -> None:
         """Load a pre-trained model from saved solutions.
-        
+
         Args:
             sol_dir_path: Path to directory containing the saved CSV files
             base_config: Base configuration (optional, uses current if not provided)
@@ -371,25 +373,17 @@ class OptimizationOrchestrator:
         """
 
         # Determine model type and load accordingly
-        if hasattr(self.model, 'algorithm_name'):  # GAModel
+        if hasattr(self.model, "algorithm_name"):  # GAModel
             from optimizer.ga_model import GAModel
-            self.model = GAModel.load(
-                sol_dir_path=sol_dir_path,
-                base_config=base_config,
-                logger=self.log,
-                **kwargs
-            )
-        elif hasattr(self.model, 'solver'):  # CpModel
+
+            self.model = GAModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
+        elif hasattr(self.model, "solver"):  # CpModel
             from optimizer.cp_model import CpModel
-            self.model = CpModel.load(
-                sol_dir_path=sol_dir_path,
-                base_config=base_config,
-                logger=self.log,
-                **kwargs
-            )
+
+            self.model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
         else:
             raise ValueError("Unknown model type for loading")
-            
+
         self.log.info(Fore.GREEN + f"Model loaded successfully from {sol_dir_path}" + Fore.RESET)
 
     def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
@@ -424,6 +418,7 @@ class OptimizationOrchestrator:
 
         print(config)
         PGAnime(config).run()
+
 
 if __name__ == "__main__":
     import argparse

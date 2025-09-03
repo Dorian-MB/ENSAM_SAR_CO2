@@ -321,7 +321,7 @@ class CpModel(cp_model.CpModel):
             self.log.error(Fore.RED + f"An error occurred while running `{self.algorithm_name}`" + Fore.RESET)
             raise e
 
-    def get_best_simulation(self, num_period:int=2000) -> tuple[dict, dict]:
+    def get_best_simulation(self, num_period: int = 2000) -> tuple[dict, dict]:
         if self.istrain is False:
             raise RuntimeError("No results available. Call solve() first.")
         best_cfg = self.cfg_builder.build(self.best_solution, num_period=num_period)
@@ -406,14 +406,18 @@ class CpModel(cp_model.CpModel):
         return metrics
 
     @classmethod
-    def load(cls, sol_dir_path: str|Path, base_config: dict,
-            algorithm: str = "SearchForAllSolutions",
-            caps_step: int = 1000,
-            metrics_keys: list = metrics_keys,
-            metrics_weight: list = metrics_weight,
-            logger=None,
-            verbose: int = 1,
-            **kwargs) -> "CpModel":
+    def load(
+        cls,
+        sol_dir_path: str | Path,
+        base_config: dict,
+        algorithm: str = "SearchForAllSolutions",
+        caps_step: int = 1000,
+        metrics_keys: list = metrics_keys,
+        metrics_weight: list = metrics_weight,
+        logger=None,
+        verbose: int = 1,
+        **kwargs,
+    ) -> "CpModel":
         """Load solutions from a CSV file"""
         log = logger or Logger()
         if isinstance(sol_dir_path, str):
@@ -426,14 +430,18 @@ class CpModel(cp_model.CpModel):
 
         csv_files = list(sol_dir_path.glob("*.csv"))
         if not csv_files or len(csv_files) != 3:
-            log.error(Fore.RED + f"No CSV files found in {sol_dir_path}. Needed 3 CSV files, got {len(csv_files)}" + Fore.RESET)
+            log.error(
+                Fore.RED
+                + f"No CSV files found in {sol_dir_path}. Needed 3 CSV files, got {len(csv_files)}"
+                + Fore.RESET
+            )
             raise FileNotFoundError(f"No CSV files found in {sol_dir_path}.")
-        
+
         # Load CSV files
         solutions_df = None
         scores_df = None
         pareto_df = None
-        
+
         for csv in csv_files:
             df = pd.read_csv(str(csv), index_col=0)
             if "solution" in csv.name:
@@ -448,17 +456,20 @@ class CpModel(cp_model.CpModel):
             else:
                 log.error(Fore.RED + f"Unknown CSV file: {csv.name}" + Fore.RESET)
                 raise ValueError(f"Unknown CSV file: {csv.name}")
-        
+
         # Verify all files were loaded
         if solutions_df is None or scores_df is None or pareto_df is None:
             missing = []
-            if solutions_df is None: missing.append("solutions")
-            if scores_df is None: missing.append("scores") 
-            if pareto_df is None: missing.append("pareto")
+            if solutions_df is None:
+                missing.append("solutions")
+            if scores_df is None:
+                missing.append("scores")
+            if pareto_df is None:
+                missing.append("pareto")
             raise ValueError(f"Missing required CSV files: {missing}")
-            
+
         log.info(Fore.GREEN + f"Loading solutions from {Fore.LIGHTCYAN_EX}{str(sol_dir_path)}" + Fore.RESET)
-        
+
         # Create instance with loaded data
         instance = cls(
             config=base_config,
@@ -468,24 +479,25 @@ class CpModel(cp_model.CpModel):
             metrics_weight=metrics_weight,
             logger=log,
             verbose=verbose,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Create a mock callback with loaded data
         from optimizer.callback import SimCallback
+
         instance.callback = SimCallback(
             variables=[],  # Empty for loaded model
             base_config=base_config,
             max_evals=0,  # No new evaluations needed
             metrics_keys=metrics_keys,
             boundaries=instance.boundaries,
-            verbose=verbose
+            verbose=verbose,
         )
-        
+
         # Set the loaded data directly on the callback
         instance.callback.solutions = solutions_df
         instance.callback.raw_metrics = scores_df
         instance.callback.pareto_front.front = pareto_df.values.T if len(pareto_df) > 0 else []
         instance.istrain = True
-        
+
         return instance

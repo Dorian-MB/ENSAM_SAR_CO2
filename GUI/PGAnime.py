@@ -62,7 +62,7 @@ class PGAnime:
         anime_cfg=AnimeCfg(),
         Simulation=Simulation,
         **kw,
-    ) -> None:  
+    ) -> None:
         """
         Initialise l’animation à partir de la configuration de simulation.
 
@@ -108,7 +108,9 @@ class PGAnime:
         # UI controls
         # Slider pour la vitesse de simulation
         slider_width, slider_height = 200, 10
-        self.slider_rect = pygame.Rect(left=0, top=0, width=slider_width, height=slider_height)  # Position (x, y) def dans 'dessine_UI'
+        self.slider_rect = pygame.Rect(
+            left=0, top=0, width=slider_width, height=slider_height
+        )  # Position (x, y) def dans 'dessine_UI'
         slider_knob_width = 10
         self.knob_rect = pygame.Rect(left=0, top=0, width=slider_knob_width, height=slider_height)
         self.dragging = False

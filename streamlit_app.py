@@ -69,7 +69,7 @@ with st.expander("Factory"):
     factory = {
         "number_of_tanks": st.number_input("Number of Tanks", value=3, min_value=1),
         "num_sources": st.number_input("Number of Sources", value=5, min_value=1),
-        "initial_capacity": 0
+        "initial_capacity": 0,
     }
     annual_production_capacity = st.number_input("Annual Production Capacity (all sources)", value=570_000)
 
