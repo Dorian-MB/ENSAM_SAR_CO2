@@ -462,7 +462,7 @@ class Kpis:
 
         fig.update_layout(
             template="ggplot2",
-            title=f"Total CO2 Transported {"per Ship" if not combine_ships else "combined Ship"} Over Time",
+            title=f"Total CO2 Transported {'per Ship' if not combine_ships else 'combined Ship'} Over Time",
             xaxis_title="Time (hours)",
             yaxis_title="Total CO2 Transported  (% of ship capacity)",
             xaxis=dict(showgrid=True),

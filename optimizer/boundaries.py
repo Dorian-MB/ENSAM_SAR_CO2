@@ -190,7 +190,6 @@ class KpisBoundaries:
                 )
             self.kpis_boundaries = self._compute_and_save_kpis_boundaries()
 
-
     def _compute_and_save_kpis_boundaries(self):
         """
         Compute the boundaries for KPIs from the scenarios.
