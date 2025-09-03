@@ -8,8 +8,9 @@ import pandas as pd
 from colorama import Fore
 
 from eco2_normandy.logger import Logger
-from optimizer.callback import SimCallback
-from optimizer.utils import flatten, ConfigBuilderFromSolution, Normalizer
+from optimizer.CPModel.callback import SimCallback
+from optimizer.CPModel.utils import flatten
+from optimizer.utils import ConfigBuilderFromSolution, Normalizer
 from optimizer.boundaries import ConfigBoundaries
 
 from ortools.sat.python import cp_model
@@ -306,10 +307,10 @@ class CpModel(cp_model.CpModel):
             self.log.info(Fore.GREEN + "=== Phase 2: Full enumeration with SimCallback ===" + Fore.RESET)
         self.SearchForAllSolutions(max_time_in_seconds=max_time_callback, **kwargs)
 
-    def SearchForAllSolutions(self, Callback=SimCallback, **kwargs) -> None:
+    def SearchForAllSolutions(self, Callback=SimCallback, max_evals=10) -> None:
         self.istrain = True
         self._add_callback_objective()
-        self._set_callback(Callback=Callback, **kwargs)
+        self._set_callback(Callback=Callback, max_evals=max_evals)
         self.solver.parameters.enumerate_all_solutions = True
         self.solver.solve(self, self.callback)
         self.callback.set_results()
@@ -483,7 +484,7 @@ class CpModel(cp_model.CpModel):
         )
 
         # Create a mock callback with loaded data
-        from optimizer.callback import SimCallback
+        from optimizer.CPModel.callback import SimCallback
 
         instance.callback = SimCallback(
             variables=[],  # Empty for loaded model

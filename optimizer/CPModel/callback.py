@@ -3,9 +3,12 @@ from colorama import Fore
 import pandas as pd
 
 from eco2_normandy.simulation import Simulation
-from optimizer.utils import (
+from optimizer.CPModel.utils import (
     ParetoFront,
     surrogate_metrics,
+)
+
+from optimizer.utils import (
     ConfigBuilderFromSolution,
     calculate_performance_metrics,
     Normalizer,
@@ -25,7 +28,7 @@ class SimCallback(CpSolverSolutionCallback):
         metrics_keys: list[str] = metrics_keys,
         boundaries=None,
         logger=None,
-    ):
+    ) -> None:
         super().__init__()
         self.metrics_keys = metrics_keys
         self.vars = variables

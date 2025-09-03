@@ -23,7 +23,7 @@ from optimizer.utils import (
 )
 from optimizer.compare_scenarios import print_diffs
 from optimizer.boundaries import ConfigBoundaries
-from optimizer.history_analyzer import NSGA3HistoryAnalyzer
+from optimizer.GAModel.history_analyzer import NSGA3HistoryAnalyzer
 
 
 class OptimizationOrchestrator:
@@ -275,7 +275,7 @@ class OptimizationOrchestrator:
             "scores": self.model.best_score,
             "solution": self.model.best_solution,
             "kpis": self.get_kpis(),
-            "res": self.model.res,
+            "res": self.model.res if hasattr(self.model, "res") else None,
         }
 
     @property
@@ -374,11 +374,11 @@ class OptimizationOrchestrator:
 
         # Determine model type and load accordingly
         if hasattr(self.model, "algorithm_name"):  # GAModel
-            from optimizer.ga_model import GAModel
+            from optimizer.GAModel.ga_model import GAModel
 
             self.model = GAModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
         elif hasattr(self.model, "solver"):  # CpModel
-            from optimizer.cp_model import CpModel
+            from optimizer.CPModel.cp_model import CpModel
 
             self.model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
         else:
@@ -422,8 +422,8 @@ class OptimizationOrchestrator:
 
 if __name__ == "__main__":
     import argparse
-    from optimizer.cp_model import CpModel
-    from optimizer.ga_model import GAModel
+    from optimizer.CPModel.cp_model import CpModel
+    from optimizer.GAModel.ga_model import GAModel
     from eco2_normandy.tools import get_simlulation_variable
 
     parser = argparse.ArgumentParser(

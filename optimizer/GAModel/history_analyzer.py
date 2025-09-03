@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import pandas as pd
 from pymoo.indicators.hv import HV
-from pymoo.indicators.igd import IGD
-from pymoo.indicators.gd import GD
-from pymoo.util.normalization import normalize
+# from pymoo.indicators.igd import IGD
+# from pymoo.indicators.gd import GD
+# from pymoo.util.normalization import normalize
 import warnings
 
 warnings.filterwarnings("ignore")
