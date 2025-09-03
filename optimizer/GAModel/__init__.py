@@ -1,2 +1,2 @@
 
-from optimizer.GAModel.ga_model import GAModel
+from optimizer.GAModel.ga_model import GaModel
