@@ -9,8 +9,10 @@ if __name__ == "__main__":
 import dill
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 from colorama import Fore
 from typing import Generator
+from pymoo.core.result import Result
 
 from KPIS import Kpis
 from eco2_normandy.logger import Logger
@@ -21,7 +23,7 @@ from optimizer.utils import (
 )
 from optimizer.compare_scenarios import print_diffs
 from optimizer.boundaries import ConfigBoundaries
-
+from optimizer.history_analyzer import NSGA3HistoryAnalyzer
 
 class OptimizationOrchestrator:
     """
@@ -235,10 +237,11 @@ class OptimizationOrchestrator:
             self.log.info(
                 Fore.GREEN + f"=== Optimization completed in {self.elapsed_time:.2f} seconds ===" + Fore.RESET
             )
+        self._save_history_in_cache(kwargs.get("model_cache", "last"))
 
     def optimize_across_phases(
         self, num_period: int = 2_000, log_score: bool = False, print_diffs: bool = False, *args, **kwargs
-    ):
+    ) -> None:
         """Optimize the model across different phases.
 
         Args:
@@ -257,18 +260,22 @@ class OptimizationOrchestrator:
         for phase in sorted(phases.keys()):
             self.log.info(Fore.YELLOW + f"=== Starting optimization for phase: {phase} ===" + Fore.RESET)
             self.model.reset(phases[phase])
-            self.optimize(*args, **kwargs)
+            self.optimize(model_cache=phase, *args, **kwargs)
             if log_score:
                 self.log_score()
             if print_diffs:
                 self.compare_solution_to_base_config()
             self.save_model(main_dir=f"./saved", save_dir=f"{phase}", save_name=f"_{phase}")
-            self.histories[phase] = {
-                "scores": self.model.best_score,
-                "solution": self.model.best_solution,
-                "kpis": self.get_kpis(),
-            }
+
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
+
+    def _save_history_in_cache(self, model_cache:str="last") -> None:
+        self.histories[model_cache] = {
+            "scores": self.model.best_score,
+            "solution": self.model.best_solution,
+            "kpis": self.get_kpis(),
+            "res": self.model.res,
+            }
 
     @property
     def scores_per_phases(self):# -> dict:
@@ -294,10 +301,40 @@ class OptimizationOrchestrator:
         if kpis is None:
             kpis = self.get_kpis()
         elif isinstance(kpis, int):
-            kpis = [ history['kpis'] for i, history in enumerate(self.histories.values()) if i == kpis][-1]
+            # kpis = [history['kpis'] for i, history in enumerate(self.histories.values()) if i == kpis][-1]
+            kpis = list(self.histories.values())[kpis]['kpis']
 
         for plot in kpis.generate_kpis_graphs():
             plot.show()
+
+    def plot_model_performance(self, res: Result|int = None) -> None:
+
+        # 1. Vérification des résultats
+        if res is None:
+            res = self.model.res
+        elif isinstance(res, int):
+            res = list(self.histories.values())[res]["res"]
+
+        # 2. analyse approfondie
+        analyzer = NSGA3HistoryAnalyzer(res)
+
+        # Analyse de convergence
+        metrics = analyzer.analyze_convergence()
+        print("\n=== ANALYSE DE CONVERGENCE ===")
+        print(f"Hypervolume final: {metrics['hypervolume'].iloc[-1]:.4f}")
+        print(f"Amélioration totale: {metrics['hypervolume'].iloc[-1] - metrics['hypervolume'].iloc[0]:.4f}")
+        print(f"Solutions finales: {metrics['n_solutions'].iloc[-1]}")
+
+        # Détection de stagnation
+        stagnation = analyzer.detect_stagnation(window_size=10, threshold=0.005)
+        if stagnation['stagnation_ratio'] > 0.3:
+            print("\n ATTENTION: Plus de 30% du temps en stagnation")
+
+        # 4. visualisation complète
+        fig1 = analyzer.plot_convergence()
+        fig2 = analyzer.plot_stagnation_analysis()
+        fig3 = analyzer.visualize_evolution()
+        plt.show()
 
     def log_score(self) -> None:
         """
@@ -312,7 +349,7 @@ class OptimizationOrchestrator:
         main_dir = Path(main_dir) / save_dir
         main_dir.mkdir(parents=True, exist_ok=True)
         for name, data in self.model.data_to_saved().items():
-            if "model" in name:
+            if "model" in name or "results" in name:
                 with open(main_dir / f"{name + save_name}.dill", "wb") as f:
                     dill.dump(data, f)
             elif isinstance(data, pd.DataFrame):
@@ -323,6 +360,37 @@ class OptimizationOrchestrator:
                 self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
         self.log.info(Fore.GREEN + "=== Resultats Sauvegarde ===" + Fore.RESET)
         self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
+
+    def load_model(self, sol_dir_path: str | Path, base_config: dict, **kwargs) -> None:
+        """Load a pre-trained model from saved solutions.
+        
+        Args:
+            sol_dir_path: Path to directory containing the saved CSV files
+            base_config: Base configuration (optional, uses current if not provided)
+            **kwargs: Additional arguments passed to the model's load method
+        """
+
+        # Determine model type and load accordingly
+        if hasattr(self.model, 'algorithm_name'):  # GAModel
+            from optimizer.ga_model import GAModel
+            self.model = GAModel.load(
+                sol_dir_path=sol_dir_path,
+                base_config=base_config,
+                logger=self.log,
+                **kwargs
+            )
+        elif hasattr(self.model, 'solver'):  # CpModel
+            from optimizer.cp_model import CpModel
+            self.model = CpModel.load(
+                sol_dir_path=sol_dir_path,
+                base_config=base_config,
+                logger=self.log,
+                **kwargs
+            )
+        else:
+            raise ValueError("Unknown model type for loading")
+            
+        self.log.info(Fore.GREEN + f"Model loaded successfully from {sol_dir_path}" + Fore.RESET)
 
     def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
         """
@@ -356,38 +424,6 @@ class OptimizationOrchestrator:
 
         print(config)
         PGAnime(config).run()
-
-    def load_model(self, sol_dir_path: str | Path, base_config: dict, **kwargs) -> None:
-        """Load a pre-trained model from saved solutions.
-        
-        Args:
-            sol_dir_path: Path to directory containing the saved CSV files
-            base_config: Base configuration (optional, uses current if not provided)
-            **kwargs: Additional arguments passed to the model's load method
-        """
-
-        # Determine model type and load accordingly
-        if hasattr(self.model, 'algorithm_name'):  # GAModel
-            from optimizer.ga_model import GAModel
-            self.model = GAModel.load(
-                sol_dir_path=sol_dir_path,
-                base_config=base_config,
-                logger=self.log,
-                **kwargs
-            )
-        elif hasattr(self.model, 'solver'):  # CpModel
-            from optimizer.cp_model import CpModel
-            self.model = CpModel.load(
-                sol_dir_path=sol_dir_path,
-                base_config=base_config,
-                logger=self.log,
-                **kwargs
-            )
-        else:
-            raise ValueError("Unknown model type for loading")
-            
-        self.log.info(Fore.GREEN + f"Model loaded successfully from {sol_dir_path}" + Fore.RESET)
-
 
 if __name__ == "__main__":
     import argparse

@@ -59,7 +59,7 @@ class NSGA3HistoryAnalyzer:
             else:
                 ref_point = np.ones(self.n_obj)
         
-        print(f"Point de référence pour HV: {ref_point}")
+        # print(f"Point de référence pour HV: {ref_point}")
         
         # Calculer les métriques pour chaque génération
         for i, algo in enumerate(self.history):

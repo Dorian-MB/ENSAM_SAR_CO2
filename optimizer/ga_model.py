@@ -576,12 +576,11 @@ class GAModel:
             return {}
         name = f"{self.algorithm_name}"
         return {
-            f"{name}_fitness": self.res.F,
-            f"{name}_solutions": self.res.X,
             f"{name}_pareto_front": self.pareto_front,
             f"{name}_all_solutions": self.solutions,
             f"{name}_all_scores": self.scores,
             f"model_{name}": self.algorithm,
+            f"{name}_results": self.res,
         }
 
     def evaluate(self, cfg: dict, clip: bool = True) -> pd.DataFrame:
@@ -627,38 +626,23 @@ class GAModel:
         if not sol_dir_path.is_dir():
             raise NotADirectoryError(f"Solution path {sol_dir_path} is not a directory.")
 
-        npy_files = list(sol_dir_path.glob("*.npy"))
-        if not npy_files or len(npy_files) != 2:
-            log.error(Fore.RED + f"No NPY files found in {sol_dir_path}. Needed 2 NPY files, got {len(npy_files)}" + Fore.RESET)
-            raise FileNotFoundError(f"No NPY files found in {sol_dir_path}.")
-        
-        # Load NPY files
-        X = None
-        F = None
-
-        for npy in npy_files:
-            df = np.load(str(npy))
-            if "solution" in npy.name:
-                X = df
-            elif "fitness" in npy.name:
-                F = df
-            else:
-                log.error(Fore.RED + f"Unknown NPY file: {npy.name}" + Fore.RESET)
-                raise ValueError(f"Unknown NPY file: {npy.name}")
-
-        # Verify all files were loaded
-        if X is None or F is None :
-            missing = []
-            if X is None: missing.append("solutions")
-            if F is None: missing.append("fitness")
-            raise ValueError(f"Missing required NPY files: {missing}")
-
         dill_file = list(sol_dir_path.glob("*.dill"))
-        if not dill_file:
+        if not dill_file :
             log.error(Fore.RED + f"No DILL files found in {sol_dir_path}." + Fore.RESET)
             raise FileNotFoundError(f"No DILL files found in {sol_dir_path}.")
-        with open(dill_file[0], "rb") as f:
-            algorithm = dill.load(f)
+        elif len(dill_file) != 2:
+            log.error(Fore.RED + f"Expected 2 DILL files, found {len(dill_file)}." + Fore.RESET)
+            raise ValueError(f"Expected 2 DILL files, found {len(dill_file)}.")
+        for dill_path in dill_file:
+            with open(dill_path, "rb") as f:
+                if "model" in dill_path.name:
+                    print(dill_path)
+                    algorithm = dill.load(f)
+                elif "res" in dill_path.name:
+                    res = dill.load(f)
+                else:
+                    log.error(Fore.RED + f"Unknown DILL file {dill_path.name}. Expected 'model' or 'res' files" + Fore.RESET)
+                    raise ValueError(f"Unknown DILL file {dill_path.name}. Expected 'model' or 'res' files")
 
         log.info(Fore.GREEN + f"Model Loaded from {Fore.LIGHTCYAN_EX}{sol_dir_path.resolve()}" + Fore.RESET)
         
@@ -677,9 +661,7 @@ class GAModel:
         
         # Set loaded data
         instance.algorithm = algorithm
-        instance.res = Result()
-        instance.res.X = X
-        instance.res.F = F
+        instance.res = res
         instance.istrain = True
         instance.from_dill = True
         instance._set_results()
