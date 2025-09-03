@@ -43,7 +43,7 @@ metrics_keys = Normalizer().metrics_keys
 
 
 
-class GAModel:
+class GaModel:
     def __init__(
         self,
         base_config: dict,
@@ -327,7 +327,8 @@ class GAModel:
         parallelization: bool = False,
         n_pool: int | None = 4,
         caps_steps: int | None = 1000,
-    ) -> "GAModel":
+        **kwargs,
+    ) -> "GaModel":
         """Load solutions from a NPY file"""
         log = logger or Logger()
         if isinstance(sol_dir_path, str):
@@ -389,5 +390,5 @@ if __name__ == "__main__":
 
     path = "scenarios/dev/phase3_bergen_18k_2boats.yaml"
     base_cfg = get_simlulation_variable(path)[0]
-    solver = GAModel(base_cfg, pop_size=10, n_gen=2, parallelization=True)
+    solver = GaModel(base_cfg, pop_size=10, n_gen=2, parallelization=True)
     res = solver.solve()

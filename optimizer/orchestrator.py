@@ -37,6 +37,7 @@ class OptimizationOrchestrator:
         logger: Logger | None = None,
         verbose: int | bool = 1,
         enable_cprofile: bool = False,
+        **kwargs,
     ) -> None:
         self.log = logger or (model.log if model.log else Logger())
         self.model = model
@@ -363,28 +364,31 @@ class OptimizationOrchestrator:
         self.log.info(Fore.GREEN + "=== Resultats Sauvegarde ===" + Fore.RESET)
         self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
 
-    def load_model(self, sol_dir_path: str | Path, base_config: dict, **kwargs) -> None:
+    @classmethod
+    def load_model(cls, model:str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
         """Load a pre-trained model from saved solutions.
 
         Args:
+            model: The model type to load (e.g., "GaModel", "CpModel")
             sol_dir_path: Path to directory containing the saved CSV files
             base_config: Base configuration (optional, uses current if not provided)
             **kwargs: Additional arguments passed to the model's load method
         """
+        log = logger or Logger()
 
         # Determine model type and load accordingly
-        if hasattr(self.model, "algorithm_name"):  # GAModel
-            from optimizer.GAModel.ga_model import GAModel
+        if model == "GaModel":  # GaModel
+            from optimizer.GAModel.ga_model import GaModel
 
-            self.model = GAModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
-        elif hasattr(self.model, "solver"):  # CpModel
+            model = GaModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=log, **kwargs)    
+        elif model == "CpModel":  # CpModel
             from optimizer.CPModel.cp_model import CpModel
 
-            self.model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=self.log, **kwargs)
+            model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=log, **kwargs)
         else:
             raise ValueError("Unknown model type for loading")
 
-        self.log.info(Fore.GREEN + f"Model loaded successfully from {sol_dir_path}" + Fore.RESET)
+        return cls(model=model, logger=log, **kwargs)
 
     def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
         """
@@ -423,7 +427,7 @@ class OptimizationOrchestrator:
 if __name__ == "__main__":
     import argparse
     from optimizer.CPModel.cp_model import CpModel
-    from optimizer.GAModel.ga_model import GAModel
+    from optimizer.GAModel.ga_model import GaModel
     from eco2_normandy.tools import get_simlulation_variable
 
     parser = argparse.ArgumentParser(
@@ -458,7 +462,7 @@ if __name__ == "__main__":
     config["general"]["num_period"] = 2_000
 
     logger = Logger()
-    model = GAModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm_name="NSGA3")
+    model = GaModel(config, pop_size=100, n_gen=10, parallelization=True, algorithm_name="NSGA3")
     # model = CpModel(config)
     optimizer = OptimizationOrchestrator(model=model, verbose=1, enable_cprofile=False)
     # optimizer.optimize(max_evals=5, verbose=1, max_time_in_seconds=1000)
