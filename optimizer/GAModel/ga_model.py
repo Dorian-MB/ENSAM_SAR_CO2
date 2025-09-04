@@ -254,7 +254,15 @@ class GaModel:
     def best_solution(self) -> pd.Series:
         return self.solutions.loc[self.best_score.name]
 
-    def get_best_simulation(self, num_period: int = 2000) -> tuple[dict, dict]:
+    def get_best_simulation(self, num_period: int = 2000) -> tuple[Simulation, dict]:
+        """Get the best simulation based on the current optimization results.
+
+        Args:
+            num_period (int, optional): Number of periods for the simulation. Defaults to 2000.
+
+        Returns:
+            tuple[Simulation, dict]: The best simulation and its configuration.
+        """
         if self.istrain is False:
             raise RuntimeError("No results available. Call solve() first.")
         best_cfg = self.cfg_builder.build(self.best_solution, num_period=num_period)
