@@ -53,11 +53,24 @@ class GaModel:
         verbose: bool | int = True,
         logger: Logger | None = None,
         parallelization: bool = False,
-        n_pool: int | None = 4,
+        n_pool: int | None = None,
         caps_steps: int | None = 1000,
         *args,
         **kwargs,
     ) -> None:
+        """Initialize the Genetic Algorithm model.
+
+        Args:
+            base_config (dict): The base configuration for the model.
+            pop_size (int | None, optional): The population size. Defaults to 20.
+            n_gen (int | None, optional): The number of generations. Defaults to 10.
+            algorithm_name (str | None, optional): The name of the algorithm to use. Defaults to "NSGA3".
+            verbose (bool | int, optional): Whether to print verbose output. Defaults to True.
+            logger (Logger | None, optional): The logger to use. Defaults to None.
+            parallelization (bool, optional): Whether to use parallelization. Defaults to False.
+            n_pool (int | None, optional): The number of processes to use for parallelization. Defaults to None (None: auto detect optimal(maximum)).
+            caps_steps (int | None, optional): The number of steps to use for the caps. Defaults to 1000.
+        """
         self.base_config = base_config
         self.pop_size = pop_size
         self.n_gen = n_gen
@@ -149,7 +162,7 @@ class GaModel:
             runner = SerializableStarmapRunner(self.n_pool)
             kpis_list = self.manager.list()
             if self.verbose:
-                self.log.info(f"Using parallelization with {self.n_pool} processes.")
+                self.log.info(f"Using parallelization with {runner.n_processes} processes.")
         else:
             if self.verbose:
                 self.log.info("Using single-threaded evaluation.")
@@ -187,7 +200,7 @@ class GaModel:
             self.res = minimize(
                 self.problem,
                 algo,
-                seed=1,
+                seed=42,
                 verbose=self.verbose,
                 copy_algorithm=False,
                 save_history=True,
@@ -333,7 +346,7 @@ class GaModel:
         verbose: bool | int = True,
         logger: Logger | None = None,
         parallelization: bool = False,
-        n_pool: int | None = 4,
+        n_pool: int | None = None,
         caps_steps: int | None = 1000,
         **kwargs,
     ) -> "GaModel":

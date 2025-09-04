@@ -1,4 +1,6 @@
 
+import os
+
 import numpy as np
 from multiprocessing import Pool
 from pymoo.core.problem import Problem
@@ -6,8 +8,6 @@ from pymoo.core.variable import Real, Integer, Choice
 from pymoo.core.repair import Repair
 from pymoo.core.sampling import Sampling
 from pymoo.core.problem import StarmapParallelization
-
-
 
 
 class MixedVariableSampling(Sampling):
@@ -125,8 +125,8 @@ class ShipConsistencyRepair(Repair):
 
 
 class SerializableStarmapRunner(StarmapParallelization):  # heritage pas obligatoire
-    def __init__(self, n_processes=4):
-        self.n_processes = n_processes
+    def __init__(self, n_processes:int|None=None) -> None:
+        self.n_processes = n_processes or os.cpu_count()
         self._pool = None
 
     def __call__(self, f, X):

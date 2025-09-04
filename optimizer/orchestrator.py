@@ -1,8 +1,9 @@
 import time
 import cProfile, pstats
+import os
 import sys
 from pathlib import Path
-from turtle import st
+import random
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
@@ -40,6 +41,8 @@ class OptimizationOrchestrator:
         logger: Logger | None = None,
         verbose: int | bool = 1,
         enable_cprofile: bool = False,
+        seed: int = 42,
+        *args,
         **kwargs,
     ) -> None:
         self.log = logger or (model.log if model.log else Logger())
@@ -49,6 +52,13 @@ class OptimizationOrchestrator:
         self.profiler = None
         self.boundaries = ConfigBoundaries(verbose=0)
         self.histories = {}
+        self.seed_it_all(seed)
+
+    @staticmethod
+    def seed_it_all(seed=42) -> None:
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
 
     def compare_solution_to_base_config(self, solution: dict = None) -> None:
         if solution is None:
