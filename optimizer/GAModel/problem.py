@@ -166,4 +166,3 @@ class SimulationProblem(ElementwiseProblem):
         objectives = [metrics[k].iloc[0] for k in self.metrics_keys]
         self.kpis_list.append(metrics)
         out["F"] = objectives
-

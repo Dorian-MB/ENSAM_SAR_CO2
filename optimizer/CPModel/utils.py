@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def flatten(lst: list) -> list:
     return [item for elem in lst for item in (flatten(elem) if isinstance(elem, list) else [elem])]
 
@@ -110,4 +111,3 @@ def surrogate_metrics(sol, cfg):
         waiting += max(0, produced - transported)
 
     return {"cost": cost, "wasted": wasted, "waiting": waiting, "travel": travel}
-

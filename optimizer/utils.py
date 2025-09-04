@@ -122,14 +122,15 @@ class Normalizer:
 ########## Usefull classes ##########
 # Config builder for simulation
 class ConfigBuilderFromSolution:
-    def __init__(self, base_config: dict, boundaries = None):
+    def __init__(self, base_config: dict, boundaries=None):
         self.base_config = base_config
         self.map_ship_initial_destination = {0: "Le Havre", 1: "Rotterdam", 2: "Bergen"}
         self.map_ship_fixed_storage_destination = {0: "Rotterdam", 1: "Bergen"}
         if boundaries is None:
             from optimizer.boundaries import Boundaries
+
             self.boundaries = Boundaries()
-        else :
+        else:
             self.boundaries = boundaries
 
     def get_config_from_solution(self, sol: dict, algorithm: str, *args, **kwargs) -> dict:
@@ -164,7 +165,7 @@ class ConfigBuilderFromSolution:
         elif sol["use_Rotterdam"]:
             return "Rotterdam"
 
-    def build(self, sol: dict, num_period:int = 2000) -> dict:
+    def build(self, sol: dict, num_period: int = 2000) -> dict:
         cfg = deepcopy(self.base_config)
         cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
         cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)

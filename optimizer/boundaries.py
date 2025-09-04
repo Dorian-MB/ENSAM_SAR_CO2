@@ -117,8 +117,8 @@ class ConfigBoundaries:
                 yaml.dump(self._boundaries, f, allow_unicode=True, sort_keys=True)
 
         self.factory_caps_per_tanks = 5700
-        
-        lower_caps = 2_000 # Arbitrary lower capacity to improve range of ship capacities
+
+        lower_caps = 2_000  # Arbitrary lower capacity to improve range of ship capacities
         self.ship_capacity = {
             "min": int(self._boundaries["ships.capacity_max"]["min"] - lower_caps),
             "max": int(self._boundaries["ships.capacity_max"]["max"]),
