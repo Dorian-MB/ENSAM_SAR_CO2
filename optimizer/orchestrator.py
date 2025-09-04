@@ -292,7 +292,7 @@ class OptimizationOrchestrator:
         fig3 = analyzer.visualize_evolution()
         plt.show()
 
-    def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (15, 15)) -> None:
+    def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (12, 12)) -> None:
         """Plot the pareto front of the optimization.
 
         Args:
@@ -456,7 +456,13 @@ class OptimizationOrchestrator:
         config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_solution(self, solution, *args, **kwargs) -> None:
+    def render_solution(self, solution=None, *args, **kwargs) -> None:
+        if solution is None:
+            solution = self.model.best_solution
+        elif isinstance(solution, int):
+            solution = list(self.histories.values())[solution]["best_solution"]
+
+
         config = self.build_config_from_solution(solution, *args, **kwargs)
         self._run_animation(config)
 
