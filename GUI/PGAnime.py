@@ -109,7 +109,7 @@ class PGAnime:
         # Slider pour la vitesse de simulation
         slider_width, slider_height = 200, 10
         # Position (x, y) def dans 'dessine_UI'
-        self.slider_rect = pygame.Rect(0, 0, slider_width, slider_height) 
+        self.slider_rect = pygame.Rect(0, 0, slider_width, slider_height)
         slider_knob_width = 10
         self.knob_rect = pygame.Rect(0, 0, slider_knob_width, slider_height)
         self.dragging = False

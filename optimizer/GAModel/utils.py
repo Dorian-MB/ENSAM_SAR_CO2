@@ -1,4 +1,3 @@
-
 import os
 
 import numpy as np
@@ -125,7 +124,7 @@ class ShipConsistencyRepair(Repair):
 
 
 class SerializableStarmapRunner(StarmapParallelization):  # heritage pas obligatoire
-    def __init__(self, n_processes:int|None=None) -> None:
+    def __init__(self, n_processes: int | None = None) -> None:
         self.n_processes = n_processes or os.cpu_count()
         self._pool = None
 
@@ -149,4 +148,3 @@ class SerializableStarmapRunner(StarmapParallelization):  # heritage pas obligat
         if self._pool:
             self._pool.close()
             self._pool = None
-

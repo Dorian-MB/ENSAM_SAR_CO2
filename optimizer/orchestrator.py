@@ -153,7 +153,7 @@ class OptimizationOrchestrator:
         if init:
             if not self.enable_cprofile:
                 self.profiler = NoProfiler()
-            elif not getattr(self, "profiler"): # Create profiler if not existing
+            elif not getattr(self, "profiler"):  # Create profiler if not existing
                 self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
                 self.profiler = cProfile.Profile()
                 self.profiler.enable()
@@ -185,7 +185,7 @@ class OptimizationOrchestrator:
         except Exception as e:
             self.cprofile(close=True)
             raise e
-        
+
         if not kwargs.get("keep_alive", False):
             self.cprofile(close=True)
 
@@ -196,7 +196,6 @@ class OptimizationOrchestrator:
         if kwargs.get("verbose") is None:
             kwargs["verbose"] = self.verbose
 
-
         self._start_model_solve(*args, **kwargs)
         if self.elapsed_time:
             self.log.info(
@@ -205,7 +204,13 @@ class OptimizationOrchestrator:
         self._save_history_in_cache(kwargs.get("model_cache", "last"))
 
     def optimize_across_phases(
-        self, num_period: int = 2_000, log_score: bool = False, print_diffs: bool = False, save: bool = False, *args, **kwargs
+        self,
+        num_period: int = 2_000,
+        log_score: bool = False,
+        print_diffs: bool = False,
+        save: bool = False,
+        *args,
+        **kwargs,
     ) -> None:
         """Optimize the model across different phases.
 
@@ -330,7 +335,6 @@ class OptimizationOrchestrator:
         elif isinstance(scores, int):
             scores = list(self.histories.values())[scores]["scores"]
 
-
         cost = scores["cost"]
         wasted_production = scores["wasted_production_over_time"]
         waiting_time = scores["waiting_time"]
@@ -348,19 +352,19 @@ class OptimizationOrchestrator:
         metrics_values = [cost, wasted_production, waiting_time, underfill_rate]
         # Find best solution index
         best_idx = scores["score"].idxmin()
-        
+
         for i, name in enumerate(metrics_name):
             ligne_i = 3 * i
             other_metrics = metrics_values[:i] + metrics_values[i + 1 :]
             other_metrics_name = metrics_name[:i] + metrics_name[i + 1 :]
-            
+
             # Plot all points in blue
-            axs[ligne_i].scatter(metrics_values[i], other_metrics[0], c='blue', alpha=0.6)
-            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1], c='blue', alpha=0.6)
-            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2], c='blue', alpha=0.6)
-            
+            axs[ligne_i].scatter(metrics_values[i], other_metrics[0], c="blue", alpha=0.6)
+            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1], c="blue", alpha=0.6)
+            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2], c="blue", alpha=0.6)
+
             # Highlight best solution in red
-            kw = dict(c='red', s=100, alpha=0.8, edgecolor='darkred', linewidth=2)
+            kw = dict(c="red", s=100, alpha=0.8, edgecolor="darkred", linewidth=2)
             axs[ligne_i].scatter(metrics_values[i][best_idx], other_metrics[0][best_idx], **kw)
             axs[ligne_i + 1].scatter(metrics_values[i][best_idx], other_metrics[1][best_idx], **kw)
             axs[ligne_i + 2].scatter(metrics_values[i][best_idx], other_metrics[2][best_idx], **kw)
@@ -399,7 +403,9 @@ class OptimizationOrchestrator:
         self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
 
     @classmethod
-    def from_phases(cls, model_name: str, phases_dir: str | Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
+    def from_phases(
+        cls, model_name: str, phases_dir: str | Path, base_config: dict, logger: Logger | None = None, **kwargs
+    ) -> None:
         """Create an OptimizationOrchestrator instance from multiple phases.
 
         Args:
@@ -414,11 +420,11 @@ class OptimizationOrchestrator:
         for path in phases_dir.glob("*"):
             if path.is_dir() and "phase" in path.name:
                 paths.append(path)
-                
+
         if not paths:
             raise ValueError(f"No valid phase directories found in {phases_dir}")
-        
-        instance = cls(model=None, logger=log, **kwargs) 
+
+        instance = cls(model=None, logger=log, **kwargs)
         paths = sorted(paths, key=lambda x: x.name)
         for p in paths:
             log.info(Fore.CYAN + f"Found phase directory: {p}" + Fore.RESET)
@@ -429,7 +435,9 @@ class OptimizationOrchestrator:
         return instance
 
     @classmethod
-    def from_model(cls, model_name:str, sol_dir_path:str|Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
+    def from_model(
+        cls, model_name: str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs
+    ) -> None:
         """Create an OptimizationOrchestrator instance from a model.
 
         Args:
@@ -438,11 +446,15 @@ class OptimizationOrchestrator:
             **kwargs: Additional arguments passed to the OptimizationOrchestrator constructor.
         """
         log = logger or Logger()
-        model = cls._load_model(model_name=model_name, sol_dir_path=sol_dir_path, logger=log, base_config=base_config, **kwargs)
+        model = cls._load_model(
+            model_name=model_name, sol_dir_path=sol_dir_path, logger=log, base_config=base_config, **kwargs
+        )
         return cls(model=model, logger=log, **kwargs)
-    
+
     @staticmethod
-    def _load_model(model_name:str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs):
+    def _load_model(
+        model_name: str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs
+    ) -> GaModel | CpModel:
         """Load a pre-trained model from saved solutions.
 
         Args:
@@ -454,7 +466,7 @@ class OptimizationOrchestrator:
 
         # Determine model type and load accordingly
         if model_name == "GaModel":  # GaModel
-            model = GaModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=logger, **kwargs)    
+            model = GaModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=logger, **kwargs)
         elif model_name == "CpModel":  # CpModel
             model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=logger, **kwargs)
         else:
@@ -486,7 +498,6 @@ class OptimizationOrchestrator:
             solution = self.model.best_solution
         elif isinstance(solution, int):
             solution = list(self.histories.values())[solution]["best_solution"]
-
 
         config = self.build_config_from_solution(solution, *args, **kwargs)
         self._run_animation(config)

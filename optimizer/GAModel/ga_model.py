@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+
 if __name__ == "__main__":
     sys.path.insert(0, str(object=Path.cwd()))
 
@@ -40,7 +41,6 @@ from optimizer.GAModel.utils import ShipConsistencyRepair, MixedVariableSampling
 from optimizer.GAModel.problem import SimulationProblem
 
 metrics_keys = Normalizer().metrics_keys
-
 
 
 class GaModel:
@@ -184,7 +184,6 @@ class GaModel:
             repair = ShipConsistencyRepair(self.boundaries.max_num_ships)
             sampling = MixedVariableSampling()
             self.algorithm = self._get_algorithm(repair, sampling)
-
 
         self._minimize(self.algorithm, keep_alive=kwargs.get("keep_alive", False))
 
@@ -380,7 +379,9 @@ class GaModel:
                     res = dill.load(f)
                 else:
                     log.error(
-                        Fore.RED + f"Unknown DILL file {dill_path.name}. Expected 'model' or 'results' files" + Fore.RESET
+                        Fore.RED
+                        + f"Unknown DILL file {dill_path.name}. Expected 'model' or 'results' files"
+                        + Fore.RESET
                     )
                     raise ValueError(f"Unknown DILL file {dill_path.name}. Expected 'model' or 'results' files")
 

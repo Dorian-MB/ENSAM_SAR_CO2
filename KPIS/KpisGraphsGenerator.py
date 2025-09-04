@@ -104,11 +104,7 @@ class KpisGraphsGenerator:
                 elif l.get("destination") in storage_names and state == "DOCKED":
                     trip["UNLOADING"] += 1
 
-                if (
-                    state == "DOCKED"
-                    and l.get("destination") == factory_name
-                    and l.get("capacity") in ["0", "0.0"]
-                ):
+                if state == "DOCKED" and l.get("destination") == factory_name and l.get("capacity") in ["0", "0.0"]:
                     init_new_trip = True
                     self.trips[ship].append(trip)
 

@@ -189,11 +189,15 @@ class Kpis:
 
             # Get cost parameters from the first row of the corresponding ships dataframe
             ship_params = ships_df[ship].iloc[0]
-            # going faster means more fuel consumption, here simplify compute with SPEED_THRESHOLD, 
-            # less than `SPEED_THRESHOLD` is low consumption, more is high consumption 
-            SPEED_THRESHOLD = 12 # knots: arbitrary threshold
+            # going faster means more fuel consumption, here simplify compute with SPEED_THRESHOLD,
+            # less than `SPEED_THRESHOLD` is low consumption, more is high consumption
+            SPEED_THRESHOLD = 12  # knots: arbitrary threshold
             mean_speed = ships_df[ship]["speed"].mean()
-            fuel_consumption = self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0)) * mean_speed / SPEED_THRESHOLD
+            fuel_consumption = (
+                self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0))
+                * mean_speed
+                / SPEED_THRESHOLD
+            )
             staff_cost = self.safe_float_conversion(ship_params.get("staff_cost_per_hour", 0))
             usage_cost = self.safe_float_conversion(ship_params.get("usage_cost_per_hour", 0))
             immobilization_cost = self.safe_float_conversion(ship_params.get("immobilization_cost_per_hour", 0))

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import pandas as pd
 from pymoo.indicators.hv import HV
+
 # from pymoo.indicators.igd import IGD
 # from pymoo.indicators.gd import GD
 # from pymoo.util.normalization import normalize
@@ -11,6 +12,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 plt.style.use("ggplot")
+
 
 class NSGA3HistoryAnalyzer:
     """Classe pour analyser l'historique d'un algorithme NSGA3 avec 4 objectifs"""
