@@ -343,13 +343,25 @@ class OptimizationOrchestrator:
             "underfill_rate",
         ]
         metrics_values = [cost, wasted_production, waiting_time, underfill_rate]
+        # Find best solution index
+        best_idx = scores["score"].idxmin()
+        
         for i, name in enumerate(metrics_name):
             ligne_i = 3 * i
             other_metrics = metrics_values[:i] + metrics_values[i + 1 :]
             other_metrics_name = metrics_name[:i] + metrics_name[i + 1 :]
-            axs[ligne_i].scatter(metrics_values[i], other_metrics[0])
-            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1])
-            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2])
+            
+            # Plot all points in blue
+            axs[ligne_i].scatter(metrics_values[i], other_metrics[0], c='blue', alpha=0.6)
+            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1], c='blue', alpha=0.6)
+            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2], c='blue', alpha=0.6)
+            
+            # Highlight best solution in red
+            kw = dict(c='red', s=100, alpha=0.8, edgecolor='darkred', linewidth=2)
+            axs[ligne_i].scatter(metrics_values[i][best_idx], other_metrics[0][best_idx], **kw)
+            axs[ligne_i + 1].scatter(metrics_values[i][best_idx], other_metrics[1][best_idx], **kw)
+            axs[ligne_i + 2].scatter(metrics_values[i][best_idx], other_metrics[2][best_idx], **kw)
+
             for j, ax in enumerate(axs[ligne_i : ligne_i + 3]):
                 ax.set_xlabel(name)
                 ax.set_ylabel(other_metrics_name[j])
