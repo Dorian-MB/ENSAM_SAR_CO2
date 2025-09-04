@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:pymoo.org)"
+      "WebFetch(domain:pymoo.org)",
+      "Bash(python:*)",
+      "Bash(poetry --version)",
+      "Bash(poetry run:*)",
+      "WebFetch(domain:realpython.com)"
     ],
     "deny": [],
     "ask": []

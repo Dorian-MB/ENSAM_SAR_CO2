@@ -150,21 +150,13 @@ class OptimizationOrchestrator:
             n (int, optional): n first function calls. Defaults to 10.
 
         """
-        assert init + close + result <= 1, "Only one of init, close, or result can be True."
-        if init + close + result == 0:
-            result = True  # Default to result if nothing is specified
         if init:
             if not self.enable_cprofile:
-                return NoProfiler()
-            self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
-            if hasattr(self.model, "multiprocessing") and self.model.multiprocessing is True:
-                self.log.info(
-                    Fore.YELLOW
-                    + f"=== Running CProfile with multiprocessing can log mainly multiprocessing calls ==="
-                    + Fore.RESET
-                )
-            self.profiler = cProfile.Profile()
-            self.profiler.enable()
+                self.profiler = NoProfiler()
+            elif not getattr(self, "profiler"): # Create profiler if not existing
+                self.log.info(Fore.YELLOW + f"=== Profiling enabled for optimization ===" + Fore.RESET)
+                self.profiler = cProfile.Profile()
+                self.profiler.enable()
             return
 
         if close and self.enable_cprofile:
@@ -174,6 +166,8 @@ class OptimizationOrchestrator:
         elif not self.enable_cprofile:
             return
 
+        if init + close + result == 0:
+            result = True  # Default to result if nothing is specified
         if result and self.enable_cprofile:
             stats = pstats.Stats(self.profiler, stream=sys.stdout)
             stats.sort_stats("cumulative")
@@ -189,8 +183,10 @@ class OptimizationOrchestrator:
             self.elapsed_time = time.perf_counter() - t
             time.sleep(0.5)  # Allow time for the solver to finish logging
         except Exception as e:
+            self.cprofile(close=True)
             raise e
-        finally:
+        
+        if not kwargs.get("keep_alive", False):
             self.cprofile(close=True)
 
     def optimize(self, *args, **kwargs) -> None:
@@ -199,6 +195,8 @@ class OptimizationOrchestrator:
         """
         if kwargs.get("verbose") is None:
             kwargs["verbose"] = self.verbose
+
+
         self._start_model_solve(*args, **kwargs)
         if self.elapsed_time:
             self.log.info(
@@ -207,7 +205,7 @@ class OptimizationOrchestrator:
         self._save_history_in_cache(kwargs.get("model_cache", "last"))
 
     def optimize_across_phases(
-        self, num_period: int = 2_000, log_score: bool = False, print_diffs: bool = False, *args, **kwargs
+        self, num_period: int = 2_000, log_score: bool = False, print_diffs: bool = False, save: bool = False, *args, **kwargs
     ) -> None:
         """Optimize the model across different phases.
 
@@ -234,7 +232,8 @@ class OptimizationOrchestrator:
                 self.log_score()
             if print_diffs:
                 self.compare_solution_to_base_config()
-            self.save_model(main_dir=f"./saved", save_dir=f"{phase}", save_name=f"_{phase}")
+            if save:
+                self.save_model(main_dir=f"./saved", save_dir=f"{phase}", save_name=f"_{phase}")
 
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
 
