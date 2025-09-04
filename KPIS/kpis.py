@@ -34,19 +34,18 @@ class Kpis:
         return {k: float(v) for k, v in dic.items()}
 
     # TODO: look like not needed
-    def safe_float_conversion(self, val: float | int | pd.Series, default: float = 0.0) -> float:
+    def safe_float_conversion(self, val: float | int | pd.Series) -> float:
         """
         Safely convert a value to float, handling pandas Series from MultiIndex DataFrames.
 
         Args:
             val: Value to convert (could be scalar, Series, etc.)
-            default: Default value if conversion fails
 
         Returns:
             float: Converted value
         """
         if isinstance(val, pd.Series):
-            return float(val.iloc[0] if len(val) > 0 else default)
+            return float(val.iloc[0])
         else:
             return float(val)
 
@@ -190,7 +189,11 @@ class Kpis:
 
             # Get cost parameters from the first row of the corresponding ships dataframe
             ship_params = ships_df[ship].iloc[0]
-            fuel_consumption = self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0))
+            # going faster means more fuel consumption, here simplify compute with SPEED_THRESHOLD, 
+            # less than `SPEED_THRESHOLD` is low consumption, more is high consumption 
+            SPEED_THRESHOLD = 12 # knots: arbitrary threshold
+            mean_speed = ships_df[ship]["speed"].mean()
+            fuel_consumption = self.safe_float_conversion(ship_params.get("fuel_consumption_per_day", 0)) * mean_speed / SPEED_THRESHOLD
             staff_cost = self.safe_float_conversion(ship_params.get("staff_cost_per_hour", 0))
             usage_cost = self.safe_float_conversion(ship_params.get("usage_cost_per_hour", 0))
             immobilization_cost = self.safe_float_conversion(ship_params.get("immobilization_cost_per_hour", 0))
