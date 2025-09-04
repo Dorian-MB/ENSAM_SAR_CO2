@@ -2,6 +2,7 @@ import time
 import cProfile, pstats
 import sys
 from pathlib import Path
+from turtle import st
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
@@ -24,6 +25,8 @@ from optimizer.utils import (
 from optimizer.compare_scenarios import print_diffs
 from optimizer.boundaries import ConfigBoundaries
 from optimizer.GAModel.history_analyzer import NSGA3HistoryAnalyzer
+from optimizer.GAModel.ga_model import GaModel
+from optimizer.CPModel.cp_model import CpModel
 
 
 class OptimizationOrchestrator:
@@ -127,56 +130,6 @@ class OptimizationOrchestrator:
             config = self.model.base_config
         return evaluate_single_scenario(config)
 
-    def plot_pareto(self, scores: pd.DataFrame | None = None, figsize: tuple | list = (15, 15)) -> None:
-        """Plot the pareto front of the optimization.
-
-        Args:
-            results (pd.DataFrame): DataFrame containing the results of the optimization. default use model best score
-
-        return None: Displays the plots of the results.
-        4x3 scatter plots of the results metrics.
-        Each row corresponds to a metric, and each column corresponds to the other metrics.
-
-        equivalent of :
-        from pymoo.visualization.scatter import Scatter
-        plot = Scatter()
-        plot.add(model.problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
-        plot.add(model.res.F, facecolor="none", edgecolor="red")
-        plot.show()
-
-        """
-        import matplotlib.pyplot as plt
-
-        scores = scores if scores is not None else self.model.scores
-
-        cost = scores["cost"]
-        wasted_production = scores["wasted_production_over_time"]
-        waiting_time = scores["waiting_time"]
-        underfill_rate = scores["underfill_rate"]
-
-        fig, axs = plt.subplots(4, 3, figsize=figsize)
-        axs = axs.flatten()
-
-        metrics_name = [
-            "cost",
-            "wasted_production_over_time",
-            "waiting_time",
-            "underfill_rate",
-        ]
-        metrics_values = [cost, wasted_production, waiting_time, underfill_rate]
-        for i, name in enumerate(metrics_name):
-            ligne_i = 3 * i
-            other_metrics = metrics_values[:i] + metrics_values[i + 1 :]
-            other_metrics_name = metrics_name[:i] + metrics_name[i + 1 :]
-            axs[ligne_i].scatter(metrics_values[i], other_metrics[0])
-            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1])
-            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2])
-            for j, ax in enumerate(axs[ligne_i : ligne_i + 3]):
-                ax.set_xlabel(name)
-                ax.set_ylabel(other_metrics_name[j])
-                fig.tight_layout()
-        plt.show()
-
     def cprofile(self, init: bool = False, close: bool = False, result: bool = False, n: int = 10) -> None:
         """init or close cProfile for the optimization process. Can also access the results.
 
@@ -273,8 +226,10 @@ class OptimizationOrchestrator:
 
     def _save_history_in_cache(self, model_cache: str = "last") -> None:
         self.histories[model_cache] = {
-            "scores": self.model.best_score,
-            "solution": self.model.best_solution,
+            "scores": self.model.scores,
+            "solution": self.model.solutions,
+            "best_score": self.model.best_score,
+            "best_solution": self.model.best_solution,
             "kpis": self.get_kpis(),
             "res": self.model.res if hasattr(self.model, "res") else None,
         }
@@ -283,7 +238,7 @@ class OptimizationOrchestrator:
     def scores_per_phases(self) -> dict:
         if self.histories == {}:
             raise ValueError("No scores computed, empty history.")
-        return {phase: history["scores"]["score"] for phase, history in self.histories.items()}
+        return {phase: history["best_score"]["score"] for phase, history in self.histories.items()}
 
     def get_kpis(self) -> Kpis:
         if self.model.istrain is False:
@@ -337,6 +292,60 @@ class OptimizationOrchestrator:
         fig3 = analyzer.visualize_evolution()
         plt.show()
 
+    def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (15, 15)) -> None:
+        """Plot the pareto front of the optimization.
+
+        Args:
+            results (pd.DataFrame): DataFrame containing the results of the optimization. default use model best score
+
+        return None: Displays the plots of the results.
+        4x3 scatter plots of the results metrics.
+        Each row corresponds to a metric, and each column corresponds to the other metrics.
+
+        equivalent of :
+        from pymoo.visualization.scatter import Scatter
+        plot = Scatter()
+        plot.add(model.problem.pareto_front(), plot_type="line", color="black", alpha=0.7)
+        plot.add(model.res.F, facecolor="none", edgecolor="red")
+        plot.show()
+
+        """
+        import matplotlib.pyplot as plt
+
+        if scores is None:
+            scores = self.model.scores
+        elif isinstance(scores, int):
+            scores = list(self.histories.values())[scores]["scores"]
+
+
+        cost = scores["cost"]
+        wasted_production = scores["wasted_production_over_time"]
+        waiting_time = scores["waiting_time"]
+        underfill_rate = scores["underfill_rate"]
+
+        fig, axs = plt.subplots(4, 3, figsize=figsize)
+        axs = axs.flatten()
+
+        metrics_name = [
+            "cost",
+            "wasted_production_over_time",
+            "waiting_time",
+            "underfill_rate",
+        ]
+        metrics_values = [cost, wasted_production, waiting_time, underfill_rate]
+        for i, name in enumerate(metrics_name):
+            ligne_i = 3 * i
+            other_metrics = metrics_values[:i] + metrics_values[i + 1 :]
+            other_metrics_name = metrics_name[:i] + metrics_name[i + 1 :]
+            axs[ligne_i].scatter(metrics_values[i], other_metrics[0])
+            axs[ligne_i + 1].scatter(metrics_values[i], other_metrics[1])
+            axs[ligne_i + 2].scatter(metrics_values[i], other_metrics[2])
+            for j, ax in enumerate(axs[ligne_i : ligne_i + 3]):
+                ax.set_xlabel(name)
+                ax.set_ylabel(other_metrics_name[j])
+                fig.tight_layout()
+        plt.show()
+
     def log_score(self) -> None:
         """
         Log the score of the current best solution.
@@ -365,7 +374,50 @@ class OptimizationOrchestrator:
         self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
 
     @classmethod
-    def load_model(cls, model:str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
+    def from_phases(cls, model_name: str, phases_dir: str | Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
+        """Create an OptimizationOrchestrator instance from multiple phases.
+
+        Args:
+            phases_dir: Directory containing phase configurations.
+            logger: Optional logger instance.
+            **kwargs: Additional arguments passed to the OptimizationOrchestrator constructor.
+        """
+        log = logger or Logger()
+        paths = []
+        if isinstance(phases_dir, str):
+            phases_dir = Path(phases_dir)
+        for path in phases_dir.glob("*"):
+            if path.is_dir() and "phase" in path.name:
+                paths.append(path)
+                
+        if not paths:
+            raise ValueError(f"No valid phase directories found in {phases_dir}")
+        
+        instance = cls(model=None, logger=log, **kwargs) 
+        paths = sorted(paths, key=lambda x: x.name)
+        for p in paths:
+            log.info(Fore.CYAN + f"Found phase directory: {p}" + Fore.RESET)
+            model = instance._load_model(model_name, sol_dir_path=p, logger=log, base_config=base_config, **kwargs)
+            instance.model = model
+            instance._save_history_in_cache(model_cache=p.name)
+
+        return instance
+
+    @classmethod
+    def from_model(cls, model_name:str, sol_dir_path:str|Path, base_config: dict, logger: Logger | None = None, **kwargs) -> None:
+        """Create an OptimizationOrchestrator instance from a model.
+
+        Args:
+            model: The optimization model instance.
+            logger: Optional logger instance.
+            **kwargs: Additional arguments passed to the OptimizationOrchestrator constructor.
+        """
+        log = logger or Logger()
+        model = cls._load_model(model_name=model_name, sol_dir_path=sol_dir_path, logger=log, base_config=base_config, **kwargs)
+        return cls(model=model, logger=log, **kwargs)
+    
+    @staticmethod
+    def _load_model(model_name:str, sol_dir_path: str | Path, base_config: dict, logger: Logger | None = None, **kwargs):
         """Load a pre-trained model from saved solutions.
 
         Args:
@@ -374,21 +426,16 @@ class OptimizationOrchestrator:
             base_config: Base configuration (optional, uses current if not provided)
             **kwargs: Additional arguments passed to the model's load method
         """
-        log = logger or Logger()
 
         # Determine model type and load accordingly
-        if model == "GaModel":  # GaModel
-            from optimizer.GAModel.ga_model import GaModel
-
-            model = GaModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=log, **kwargs)    
-        elif model == "CpModel":  # CpModel
-            from optimizer.CPModel.cp_model import CpModel
-
-            model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=log, **kwargs)
+        if model_name == "GaModel":  # GaModel
+            model = GaModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=logger, **kwargs)    
+        elif model_name == "CpModel":  # CpModel
+            model = CpModel.load(sol_dir_path=sol_dir_path, base_config=base_config, logger=logger, **kwargs)
         else:
             raise ValueError("Unknown model type for loading")
 
-        return cls(model=model, logger=log, **kwargs)
+        return model
 
     def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
         """
