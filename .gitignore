@@ -24,3 +24,6 @@ config.yaml
 .DS_Store
 docs/
 .cache/
+KPI_PERFORMANCE_OPTIMIZATIONS.md
+performance_test.py
+GUI/PGAnime_simple.py
