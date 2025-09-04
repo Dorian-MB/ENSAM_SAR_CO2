@@ -349,15 +349,14 @@ class GaModel:
         for dill_path in dill_file:
             with open(dill_path, "rb") as f:
                 if "model" in dill_path.name:
-                    print(dill_path)
                     algorithm = dill.load(f)
-                elif "res" in dill_path.name:
+                elif "results" in dill_path.name:
                     res = dill.load(f)
                 else:
                     log.error(
-                        Fore.RED + f"Unknown DILL file {dill_path.name}. Expected 'model' or 'res' files" + Fore.RESET
+                        Fore.RED + f"Unknown DILL file {dill_path.name}. Expected 'model' or 'results' files" + Fore.RESET
                     )
-                    raise ValueError(f"Unknown DILL file {dill_path.name}. Expected 'model' or 'res' files")
+                    raise ValueError(f"Unknown DILL file {dill_path.name}. Expected 'model' or 'results' files")
 
         log.info(Fore.GREEN + f"Model Loaded from {Fore.LIGHTCYAN_EX}{sol_dir_path.resolve()}" + Fore.RESET)
 

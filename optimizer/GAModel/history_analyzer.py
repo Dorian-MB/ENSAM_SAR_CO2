@@ -10,6 +10,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+plt.style.use("ggplot")
 
 class NSGA3HistoryAnalyzer:
     """Classe pour analyser l'historique d'un algorithme NSGA3 avec 4 objectifs"""
