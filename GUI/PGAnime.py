@@ -108,16 +108,15 @@ class PGAnime:
         # UI controls
         # Slider pour la vitesse de simulation
         slider_width, slider_height = 200, 10
-        self.slider_rect = pygame.Rect(
-            left=0, top=0, width=slider_width, height=slider_height
-        )  # Position (x, y) def dans 'dessine_UI'
+        # Position (x, y) def dans 'dessine_UI'
+        self.slider_rect = pygame.Rect(0, 0, slider_width, slider_height) 
         slider_knob_width = 10
-        self.knob_rect = pygame.Rect(left=0, top=0, width=slider_knob_width, height=slider_height)
+        self.knob_rect = pygame.Rect(0, 0, slider_knob_width, slider_height)
         self.dragging = False
 
         # Bouton pause
         self.paused = True
-        self.pause_button_rect = pygame.Rect(left=10, top=40, width=100, height=30)
+        self.pause_button_rect = pygame.Rect(10, 40, 100, 30)
 
         # bouton pour afficher/masquer les KPIs
         self.kpi_button_rect = pygame.Rect(
