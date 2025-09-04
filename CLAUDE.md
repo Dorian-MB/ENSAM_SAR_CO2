@@ -28,6 +28,14 @@ make st
 poetry run python -m eco2_normandy.simulation
 ```
 
+### Run any python script via:
+```bash
+poetry run python <mon_script>.py
+
+# Exemple 
+poetry run python optimizer/orchestractor.py
+```
+
 ### Development & Testing
 ```bash
 # Run tests (alpha version ,not important for now)
@@ -121,6 +129,49 @@ opt.optimize(max_evals=5)
 - Optimization results: `saved/` (scores, solutions, pareto fronts)
 - Animation assets: `assets/` (PNG images for pygame)
 - Documentation: `docs/` (Sphinx-based)
+
+### Global python tree-scructure:
+
+.
+├── GUI
+│   ├── PGAnime.py
+│   └── __init__.py
+├── KPIS
+│   ├── KpisGraphsGenerator.py
+│   ├── LiveKpisGraphsGenerator.py
+│   ├── __init__.py
+│   ├── kpis.py
+│   └── utils.py
+├── __init__.py
+├── eco2_normandy
+│   ├── __init__.py
+│   ├── factory.py
+│   ├── logger.py
+│   ├── port.py
+│   ├── ship.py
+│   ├── simulation.py
+│   ├── stateSaver.py
+│   ├── storage.py
+│   ├── tools.py
+│   └── weather.py
+├── optimizer
+│   ├── CPModel
+│   │   ├── __init__.py
+│   │   ├── callback.py
+│   │   ├── cp_model.py
+│   │   └── utils.py
+│   ├── GAModel
+│   │   ├── __init__.py
+│   │   ├── ga_model.py
+│   │   ├── history_analyzer.py
+│   │   ├── problem.py
+│   │   └── utils.py
+│   ├── __init__.py
+│   ├── boundaries.py
+│   ├── compare_scenarios.py
+│   ├── orchestrator.py
+│   └── utils.py
+└── streamlit_app.py
 
 ### Testing & Validation
 
