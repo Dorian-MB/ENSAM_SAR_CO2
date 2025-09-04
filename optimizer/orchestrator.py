@@ -151,6 +151,8 @@ class OptimizationOrchestrator:
 
         """
         assert init + close + result <= 1, "Only one of init, close, or result can be True."
+        if init + close + result == 0:
+            result = True  # Default to result if nothing is specified
         if init:
             if not self.enable_cprofile:
                 return NoProfiler()
@@ -222,10 +224,12 @@ class OptimizationOrchestrator:
             base_config["general"]["num_period"] = num_period
             phases[phase] = base_config
 
-        for phase in sorted(phases.keys()):
+        for i, phase in enumerate(sorted(phases.keys())):
             self.log.info(Fore.YELLOW + f"=== Starting optimization for phase: {phase} ===" + Fore.RESET)
             self.model.reset(phases[phase])
-            self.optimize(model_cache=phase, *args, **kwargs)
+
+            keep_alive = True if i < len(phases) - 1 else False
+            self.optimize(model_cache=phase, keep_alive=keep_alive, *args, **kwargs)
             if log_score:
                 self.log_score()
             if print_diffs:

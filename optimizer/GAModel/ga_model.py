@@ -81,6 +81,9 @@ class GaModel:
         self.verbose = verbose
         self.log = logger or Logger()
         self.parallelization = parallelization
+        self.init_parallelization = parallelization
+        self.runner = None
+        self.kpis_list = Manager().list() if parallelization else []
         self.n_pool = n_pool if parallelization else 1
         self.manager = Manager() if parallelization else None
 
@@ -103,7 +106,7 @@ class GaModel:
         self.istrain = False
         self.base_config = base_config
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
-        self.manager = Manager() if self.parallelization else None
+        self.kpis_list = self.manager.list() if self.parallelization else []
 
     def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 500) -> list[tuple[int, int]]:
         """Calcule les tailles de population valides pour NSGA3"""
@@ -158,23 +161,22 @@ class GaModel:
         return algorithm
 
     def solve(self, *args, **kwargs) -> None:
-        if self.parallelization:
-            runner = SerializableStarmapRunner(self.n_pool)
-            kpis_list = self.manager.list()
+        if self.init_parallelization:
+            self.runner = SerializableStarmapRunner(self.n_pool)
+            self.init_parallelization = False
             if self.verbose:
-                self.log.info(f"Using parallelization with {runner.n_processes} processes.")
-        else:
+                self.log.info(f"Using parallelization with {self.runner.n_processes} processes.")
+        elif not self.parallelization:
             if self.verbose:
                 self.log.info("Using single-threaded evaluation.")
-            runner = LoopedElementwiseEvaluation()
-            kpis_list = []
+            self.runner = LoopedElementwiseEvaluation()
 
         self.problem = SimulationProblem(
             self.base_config,
             self.boundaries,
-            kpis_list=kpis_list,
+            kpis_list=self.kpis_list,
             caps_steps=self.caps_steps,
-            elementwise_runner=runner,
+            elementwise_runner=self.runner,
             logger=self.log,
         )
 
@@ -183,13 +185,15 @@ class GaModel:
             sampling = MixedVariableSampling()
             self.algorithm = self._get_algorithm(repair, sampling)
 
-        self._minimize(self.algorithm, runner)
+
+        self._minimize(self.algorithm, keep_alive=kwargs.get("keep_alive", False))
 
         if self.parallelization:
-            self.problem.kpis_list = list(kpis_list)
+            self.problem.kpis_list = list(self.kpis_list)
+            self.kpis_list = list(self.kpis_list)
         self._set_results()
 
-    def _minimize(self, algo: GeneticAlgorithm, runner) -> Result:
+    def _minimize(self, algo: GeneticAlgorithm, *args, **kwargs) -> Result:
         """
         Minimize the problem using the given algorithm.
         handle errors and parallelization. close the pool even if an error occurs.
@@ -208,11 +212,12 @@ class GaModel:
             self.istrain = True
 
         except Exception as e:
+            if self.parallelization:
+                self.runner.close()
             self.log.error(Fore.RED + f"Error occurred during minimization `GASolver`: {e}" + Fore.RESET)
             raise e
-        finally:
-            if self.parallelization:
-                runner.close()
+        if self.parallelization and not kwargs.get("keep_alive", False):
+            self.runner.close()
         return self.res
 
     def _set_results(self) -> None:
