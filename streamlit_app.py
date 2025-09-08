@@ -112,7 +112,7 @@ with st.expander("Ships"):
         }
 
 
-config = get_simlulation_variable("scenarios/dev/phase3_bergen_18k_2boats.yaml")[0]
+config = get_simlulation_variable(r"scenarios\phase_3\rotterdam\phase3_rotterdam_18k_2boats.yaml")[0]
 config["general"].update(general)
 config["factory"].update(factory)
 

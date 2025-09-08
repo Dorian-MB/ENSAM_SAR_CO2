@@ -60,14 +60,25 @@ class OptimizationOrchestrator:
         random.seed(seed)
         np.random.seed(seed)
 
-    def compare_solution_to_base_config(self, solution: dict = None) -> None:
-        if solution is None:
-            solution = self.model.best_solution
-        sol_cfg = self.model.cfg_builder.build(solution)
-        base_config = self.model.base_config
+    def compare_solutions(self, sol1: dict, sol2: dict) -> None:
+        sol1_cfg = self.model.cfg_builder.build(sol1)
+        sol2_cfg = self.model.cfg_builder.build(sol2)
+        sol1_cfg["name"] = "solution_1"
+        sol2_cfg["name"] = "solution_2"
+        print_diffs(sol1_cfg, sol2_cfg)
+
+    def compare_solution_to_base_config(self, solution: dict = None, base_cfg: dict = None) -> None:
+        solution = solution if solution is not None else self.model.best_solution
+        base_cfg = base_cfg if base_cfg is not None else self.model.base_config
+        sol_cfg = self.model.cfg_builder.build(solution, base_config=base_cfg)
         sol_cfg["name"] = "model_solution"
-        base_config["name"] = "base_config"
-        print_diffs(sol_cfg, base_config)
+        base_cfg["name"] = "base_config"
+        print_diffs(sol_cfg, base_cfg)
+
+    def compare_config(self, cfg1: dict, cfg2: dict) -> None:
+        cfg1["name"] = "config_1"
+        cfg2["name"] = "config_2"
+        print_diffs(cfg1, cfg2)
 
     @staticmethod
     def _get_scenarios(
@@ -127,13 +138,15 @@ class OptimizationOrchestrator:
             pd.DataFrame: MultiIndex DataFrame with results of the evaluation.
         """
         results = []
-        for s_path, scenario in OptimizationOrchestrator._get_scenarios(path):
+        histories = {}
+        for s_path, scenario in OptimizationOrchestrator._get_scenarios(path, scenario_filter=scenario_filter):
             scenario["eval_name"] = s_path.name
             scenario["general"]["num_period"] = num_period
-            r = evaluate_single_scenario(scenario)
-            r.index = pd.Index([s_path.name])
+            r, kpis = evaluate_single_scenario(scenario)
+            histories["default_" + str(s_path.stem)] = {"kpis": kpis, "base_config": scenario}
+            r.index = pd.Index(["default_" + str(s_path.stem)])
             results.append(r)
-        return pd.concat(results).sort_index()
+        return pd.concat(results).sort_index(), histories
 
     def evaluate_base_scenario(self, config: dict | None = None) -> pd.DataFrame:
         if config is None:
@@ -257,6 +270,15 @@ class OptimizationOrchestrator:
         if self.histories == {}:
             raise ValueError("No scores computed, empty history.")
         return {phase: history["best_score"]["score"] for phase, history in self.histories.items()}
+
+    @property
+    def objectives_per_phases(self) -> pd.DataFrame:
+        if self.histories == {}:
+            raise ValueError("No scores computed, empty history.")
+        return pd.DataFrame({
+            phase: history["best_score"]
+            for phase, history in self.histories.items()
+        }).T
 
     def get_kpis(self) -> Kpis:
         if self.model.istrain is False:
@@ -389,6 +411,8 @@ class OptimizationOrchestrator:
             raise ValueError("model not trained yet, `self.solve()`")
         main_dir = Path(main_dir) / save_dir
         main_dir.mkdir(parents=True, exist_ok=True)
+
+        delta_t = time.perf_counter()
         for name, data in self.model.data_to_saved().items():
             if "model" in name or "results" in name:
                 with open(main_dir / f"{name + save_name}.dill", "wb") as f:
@@ -400,7 +424,9 @@ class OptimizationOrchestrator:
             else:
                 self.log.warning(Fore.YELLOW + f"Skipping saving {name} as it is not a DataFrame." + Fore.RESET)
         self.log.info(Fore.GREEN + "=== Resultats Sauvegarde ===" + Fore.RESET)
+        delta_t = time.perf_counter() - delta_t
         self.log.info(f"Result files saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
+        self.log.info(Fore.LIGHTGREEN_EX + f"Saving took {delta_t:.2f} seconds." + Fore.RESET)
 
     @classmethod
     def from_phases(

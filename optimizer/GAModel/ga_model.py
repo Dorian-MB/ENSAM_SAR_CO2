@@ -368,15 +368,13 @@ class GaModel:
         if not dill_file:
             log.error(Fore.RED + f"No DILL files found in {sol_dir_path}." + Fore.RESET)
             raise FileNotFoundError(f"No DILL files found in {sol_dir_path}.")
-        elif len(dill_file) != 2:
-            log.error(Fore.RED + f"Expected 2 DILL files, found {len(dill_file)}." + Fore.RESET)
-            raise ValueError(f"Expected 2 DILL files, found {len(dill_file)}.")
+        elif len(dill_file) != 1:
+            log.error(Fore.RED + f"Expected 1 DILL files, found {len(dill_file)}." + Fore.RESET)
+            raise ValueError(f"Expected 1 DILL files, found {len(dill_file)}.")
         for dill_path in dill_file:
             with open(dill_path, "rb") as f:
-                if "model" in dill_path.name:
+                if str(dill_path.stem) in ["model", "ga_model"]:
                     algorithm = dill.load(f)
-                elif "results" in dill_path.name:
-                    res = dill.load(f)
                 else:
                     log.error(
                         Fore.RED
@@ -402,7 +400,8 @@ class GaModel:
 
         # Set loaded data
         instance.algorithm = algorithm
-        instance.res = res
+        algorithm.setup(algorithm.problem, pop_size=pop_size, n_gen=n_gen)
+        instance.res = algorithm.result()
         instance.istrain = True
         instance.from_dill = True
         instance._set_results()

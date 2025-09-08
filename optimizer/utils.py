@@ -14,10 +14,16 @@ from eco2_normandy.tools import get_simlulation_variable
 from KPIS import Kpis
 
 
-metrics_keys = ["cost", "wasted_production_over_time", "waiting_time", "underfill_rate"]
+metrics_keys: list[str] = [
+    "cost",
+    "wasted_production_over_time",
+    "waiting_time",
+    "underfill_rate",
+]
+metrics_weight: list[int] = [20, 20, 10, 15]
 
 
-def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
+def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys, return_kpis=False) -> pd.DataFrame:
     """Évalue la configuration en lançant la simulation."""
     dfs = sim.result
     kpis = Kpis(dfs, cfg)
@@ -33,6 +39,8 @@ def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys):
             [cost, wasted_production_over_time, waiting_time, 1 - factory_filling_rate],
         )
     }
+    if return_kpis:
+        return pd.DataFrame(metrics, index=[0]), kpis
     return pd.DataFrame(metrics, index=[0])
 
 
@@ -65,22 +73,13 @@ def evaluate_single_scenario(scenario: dict, return_score: bool = True) -> pd.Da
     # Create a simulation instance
     sim = Simulation(scenario, verbose=0)
     sim.run()
-    result = calculate_performance_metrics(scenario, sim)
+    result, kpis = calculate_performance_metrics(scenario, sim, return_kpis=True)
     if return_score:
         if not hasattr(evaluate_single_scenario, "normalize"):
             evaluate_single_scenario.normalize = Normalizer()
         norm_df = evaluate_single_scenario.normalize(result)
         result["score"] = evaluate_single_scenario.normalize.compute_score(norm_df)
-    return result
-
-
-metrics_keys: list[str] = [
-    "cost",
-    "wasted_production_over_time",
-    "waiting_time",
-    "underfill_rate",
-]
-metrics_weight: list[int] = [20, 20, 10, 15]
+    return result, kpis
 
 
 class Normalizer:
@@ -165,17 +164,19 @@ class ConfigBuilderFromSolution:
         elif sol["use_Rotterdam"]:
             return "Rotterdam"
 
-    def build(self, sol: dict, num_period: int = 2000) -> dict:
-        cfg = deepcopy(self.base_config)
+    def build(self, sol: dict, num_period: int = 2000, base_config: dict = None) -> dict:
+        if base_config is None:
+            base_config = self.base_config
+        cfg = deepcopy(base_config)
         cfg["factory"]["number_of_tanks"] = sol["number_of_tanks"]
         cfg["factory"]["capacity_max"] = int(sol["number_of_tanks"] * self.boundaries.factory_caps_per_tanks)
-        X = (self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"])
+        X = (self.boundaries.factory_tanks["min"], self.boundaries.factory_tanks["max"]) # inverted: f(x)=ax+b with a<0
         Y = (
-            self.boundaries.factory_cost_per_tank["min"],
             self.boundaries.factory_cost_per_tank["max"],
+            self.boundaries.factory_cost_per_tank["min"],
         )
         cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
-        cfg["factory"]["intial_capacity"] = 0
+        cfg["factory"]["initial_capacity"] = cfg["factory"]["capacity_max"]//2
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = ""
