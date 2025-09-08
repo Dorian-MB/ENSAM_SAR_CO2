@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 import random
+from turtle import st
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path.cwd()))
@@ -91,6 +92,16 @@ class OptimizationOrchestrator:
             if scenario_filter and scenario_filter not in str(s_path.parent):
                 continue
             yield s_path, scenario
+
+    @staticmethod
+    def _get_unique_scenarios(self, scenario_filter) -> dict:
+        phases = {}
+        for path, base_config in OptimizationOrchestrator._get_scenarios("scenarios", scenario_filter=scenario_filter):
+            phase = path.parts[1]
+            if phase in phases.keys():
+                continue
+            phases[phase] = base_config
+        return phases
 
     def evaluate_all_scenarios(
         self,
@@ -222,6 +233,7 @@ class OptimizationOrchestrator:
         log_score: bool = False,
         print_diffs: bool = False,
         save: bool = False,
+        save_dir: str|Path = "saved/model_phases",
         *args,
         **kwargs,
     ) -> None:
@@ -232,11 +244,12 @@ class OptimizationOrchestrator:
             log_score (bool, optional): Whether to log the score. Defaults to False.
             print_diffs (bool, optional): Whether to print differences. Defaults to False.
         """
+        if isinstance(save_dir, str):
+            save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+
         phases = {}
-        for path, base_config in OptimizationOrchestrator._get_scenarios("scenarios", scenario_filter="phase"):
-            phase = path.parts[1]
-            if phase in phases.keys():
-                continue
+        for phase, base_config in OptimizationOrchestrator._get_unique_scenarios(self, scenario_filter="phase").items():
             base_config["general"]["num_period"] = num_period
             phases[phase] = base_config
 
@@ -251,7 +264,8 @@ class OptimizationOrchestrator:
             if print_diffs:
                 self.compare_solution_to_base_config()
             if save:
-                self.save_model(main_dir=f"./saved", save_dir=f"{phase}", save_name=f"_{phase}")
+                self.log.info(Fore.YELLOW + f"=== Saving model for phase: {phase} (saving can take time) ===" + Fore.RESET)
+                self.save_model(main_dir=save_dir, save_dir=f"{phase}", save_name=f"_{phase}")
 
             self.log.info(Fore.YELLOW + f"=== Finished optimization for phase: {phase} ===\n" + Fore.RESET)
 
@@ -288,7 +302,7 @@ class OptimizationOrchestrator:
         kpis = Kpis(sim.result, cfg)
         return kpis
 
-    def plots_kpis(self, kpis: Kpis | int | None = None) -> None:
+    def plot_kpis(self, kpis: Kpis | int | None = None) -> None:
         """Plot the KPIs.
         Defaults to the current KPIs model if none are provided.
 
@@ -397,6 +411,16 @@ class OptimizationOrchestrator:
                 fig.tight_layout()
         plt.show()
 
+    def plot_all(self, i:int = None) -> None:
+        """Plot all available plots.
+
+        Args:
+            i (int): The iteration index to plot. If None, uses the current model state.
+        """
+        self.plot_model_performance(i)
+        self.plot_pareto(i)
+        self.plot_kpis(i)
+
     def log_score(self) -> None:
         """
         Log the score of the current best solution.
@@ -404,17 +428,19 @@ class OptimizationOrchestrator:
         self.model.log_score()
 
     def save_model(
-        self, main_dir: str = "./saved/", save_dir: str = "model_files", save_name: str = "", index: bool = True
+        self, main_dir: str|Path = "./saved/", save_dir: str = "model_files", save_name: str = "", index: bool = True
     ) -> None:
         if not self.model.istrain:
             self.log.info("model not trained yet, `self.solve()`")
             raise ValueError("model not trained yet, `self.solve()`")
-        main_dir = Path(main_dir) / save_dir
+        if isinstance(main_dir, str):
+            main_dir = Path(main_dir)
+        main_dir = main_dir / save_dir
         main_dir.mkdir(parents=True, exist_ok=True)
 
         delta_t = time.perf_counter()
         for name, data in self.model.data_to_saved().items():
-            if "model" in name or "results" in name:
+            if "model" in name:
                 with open(main_dir / f"{name + save_name}.dill", "wb") as f:
                     dill.dump(data, f)
             elif isinstance(data, pd.DataFrame):
@@ -430,7 +456,7 @@ class OptimizationOrchestrator:
 
     @classmethod
     def from_phases(
-        cls, model_name: str, phases_dir: str | Path, base_config: dict, logger: Logger | None = None, **kwargs
+        cls, model_name: str, phases_dir: str | Path, bases_config: list[dict]=None, logger: Logger | None = None, **kwargs
     ) -> None:
         """Create an OptimizationOrchestrator instance from multiple phases.
 
@@ -440,6 +466,11 @@ class OptimizationOrchestrator:
             **kwargs: Additional arguments passed to the OptimizationOrchestrator constructor.
         """
         log = logger or Logger()
+
+        if bases_config is None:
+            bases_config = list(sorted(cls._get_unique_scenarios("scenarios", scenario_filter="phase").items(), key=lambda x: x[0]))  # Sort by phase name
+            bases_config = [cfg for _, cfg in bases_config]
+
         paths = []
         if isinstance(phases_dir, str):
             phases_dir = Path(phases_dir)
@@ -452,9 +483,9 @@ class OptimizationOrchestrator:
 
         instance = cls(model=None, logger=log, **kwargs)
         paths = sorted(paths, key=lambda x: x.name)
-        for p in paths:
+        for i, p in enumerate(paths):
             log.info(Fore.CYAN + f"Found phase directory: {p}" + Fore.RESET)
-            model = instance._load_model(model_name, sol_dir_path=p, logger=log, base_config=base_config, **kwargs)
+            model = instance._load_model(model_name, sol_dir_path=p, logger=log, base_config=bases_config[i], **kwargs)
             instance.model = model
             instance._save_history_in_cache(model_cache=p.name)
 
@@ -519,7 +550,7 @@ class OptimizationOrchestrator:
         config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_solution(self, solution=None, *args, **kwargs) -> None:
+    def render_solution(self, solution=int|None, *args, **kwargs) -> None:
         if solution is None:
             solution = self.model.best_solution
         elif isinstance(solution, int):

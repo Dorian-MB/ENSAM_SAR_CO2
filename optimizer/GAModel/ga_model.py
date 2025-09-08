@@ -96,7 +96,7 @@ class GaModel:
         self.boundaries = ConfigBoundaries(logger=self.log, verbose=0)
         self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
         self.normalize = Normalizer()
-        self.problem = SimulationProblem(base_config, self.boundaries)
+        self.problem = None
         self.metrics_keys = self.normalize.metrics_keys
 
     def reset(self, base_config: dict) -> None:
@@ -314,7 +314,6 @@ class GaModel:
             f"{name}_all_solutions": self.solutions,
             f"{name}_all_scores": self.scores,
             f"model_{name}": self.algorithm,
-            f"{name}_results": self.res,
         }
 
     def evaluate(self, cfg: dict, clip: bool = True) -> pd.DataFrame:
@@ -344,14 +343,14 @@ class GaModel:
         cls,
         sol_dir_path: str | Path,
         base_config: dict,
-        pop_size: int | None = 20,
-        n_gen: int | None = 10,
+        pop_size: int | None = None,
+        n_gen: int | None = None,
         algorithm_name: str | None = None,
         verbose: bool | int = True,
         logger: Logger | None = None,
         parallelization: bool = False,
         n_pool: int | None = None,
-        caps_steps: int | None = 1000,
+        caps_steps: int | None = None,
         **kwargs,
     ) -> "GaModel":
         """Load solutions from a NPY file"""
@@ -373,7 +372,7 @@ class GaModel:
             raise ValueError(f"Expected 1 DILL files, found {len(dill_file)}.")
         for dill_path in dill_file:
             with open(dill_path, "rb") as f:
-                if str(dill_path.stem) in ["model", "ga_model"]:
+                if "model" in str(dill_path.stem):
                     algorithm = dill.load(f)
                 else:
                     log.error(
@@ -386,6 +385,9 @@ class GaModel:
         log.info(Fore.GREEN + f"Model Loaded from {Fore.LIGHTCYAN_EX}{sol_dir_path.resolve()}" + Fore.RESET)
 
         # Create instance with loaded data
+        pop_size = pop_size or algorithm.pop_size
+        n_gen = n_gen or algorithm.n_gen
+        caps_steps = caps_steps or algorithm.problem.caps_steps
         instance = cls(
             base_config=base_config,
             pop_size=pop_size,
@@ -399,8 +401,9 @@ class GaModel:
         )
 
         # Set loaded data
-        instance.algorithm = algorithm
         algorithm.setup(algorithm.problem, pop_size=pop_size, n_gen=n_gen)
+        instance.problem = algorithm.problem
+        instance.algorithm = algorithm
         instance.res = algorithm.result()
         instance.istrain = True
         instance.from_dill = True
