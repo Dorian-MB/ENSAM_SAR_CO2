@@ -119,7 +119,7 @@ class Normalizer:
 
 
 ########## Usefull classes ##########
-# Config builder for simulation
+# Config builder for optimisation solution
 class ConfigBuilderFromSolution:
     def __init__(self, base_config: dict, boundaries=None):
         self.base_config = base_config

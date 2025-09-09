@@ -1,9 +1,12 @@
 from pathlib import Path
+from re import M
 import sys
+import time
 
 if __name__ == "__main__":
     sys.path.insert(0, str(object=Path.cwd()))
 
+from matplotlib.pyplot import cla
 import numpy as np
 import pandas as pd
 
@@ -52,9 +55,10 @@ class GaModel:
         algorithm_name: str | None = "NSGA3",
         verbose: bool | int = True,
         logger: Logger | None = None,
-        parallelization: bool = False,
+        parallelization: bool = True,
         n_pool: int | None = None,
         caps_steps: int | None = 1000,
+        runner=None,
         *args,
         **kwargs,
     ) -> None:
@@ -71,18 +75,18 @@ class GaModel:
             n_pool (int | None, optional): The number of processes to use for parallelization. Defaults to None (None: auto detect optimal(maximum)).
             caps_steps (int | None, optional): The number of steps to use for the caps. Defaults to 1000.
         """
+        self.log = logger or Logger()
         self.base_config = base_config
-        self.pop_size = pop_size
-        self.n_gen = n_gen
         self.n_obj = 4
+        self.n_gen = n_gen
         self.algorithm_name = algorithm_name
+        self.pop_size = pop_size
+        self._set_valid_pop_size()
         self.algorithm = None
         self.caps_steps = caps_steps
         self.verbose = verbose
-        self.log = logger or Logger()
         self.parallelization = parallelization
-        self.init_parallelization = parallelization
-        self.runner = None
+        self.runner = runner
         self.kpis_list = Manager().list() if parallelization else []
         self.n_pool = n_pool if parallelization else 1
         self.manager = Manager() if parallelization else None
@@ -99,14 +103,22 @@ class GaModel:
         self.problem = None
         self.metrics_keys = self.normalize.metrics_keys
 
-    def reset(self, base_config: dict) -> None:
-        self.res = None
-        self.solutions = []
-        self.scores = []
-        self.istrain = False
-        self.base_config = base_config
-        self.cfg_builder = ConfigBuilderFromSolution(base_config, self.boundaries)
-        self.kpis_list = self.manager.list() if self.parallelization else []
+    @classmethod
+    def reset(cls, base_config: dict, _dict_: dict) -> "GaModel":
+        """Reset the model to its initial state."""
+        return cls(
+            base_config=base_config,
+            pop_size=_dict_["pop_size"],
+            n_gen=_dict_["n_gen"],
+            algorithm_name=_dict_["algorithm_name"],
+            verbose=_dict_["verbose"],
+            logger=_dict_["log"],
+            parallelization=_dict_["parallelization"],
+            n_pool=_dict_["n_pool"],
+            caps_steps=_dict_["caps_steps"],
+            runner=_dict_["runner"],
+        )
+
 
     def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 500) -> list[tuple[int, int]]:
         """Calcule les tailles de population valides pour NSGA3"""
@@ -129,18 +141,24 @@ class GaModel:
         valid_sizes = self._calculate_valid_population_sizes(self.n_obj)
         return sorted([size[1] for size in valid_sizes])
 
+    def _set_valid_pop_size(self) -> None:
+        """Ajuste la taille de la population si nécessaire pour NSGA3"""
+        if self.algorithm_name == "NSGA3":
+            valid_sizes = self._get_valid_pop_sizes()
+            if self.pop_size not in valid_sizes:
+                closest = self._get_closest_valid_pop_size(self.pop_size, self.n_obj)
+                self.log.warning(
+                    Fore.RED + f"Adjusting pop_size from {self.pop_size} to {closest} for NSGA3" + Fore.RESET
+                )
+                self.pop_size = closest
+
     def _get_algorithm(self, repair: Repair, sampling: Sampling = None) -> GeneticAlgorithm:
         # ? Check algo: https://pymoo.org/algorithms/list.html
         # Create ship consistency repair operator
         if sampling is None:
             sampling = FloatRandomSampling()
         if self.algorithm_name == "NSGA3":
-            valid_pop_size = self._get_closest_valid_pop_size(self.pop_size, self.n_obj)
-            if valid_pop_size != self.pop_size:
-                self.log.warning(
-                    Fore.RED + f"Adjusting pop_size from {self.pop_size} to {valid_pop_size} for NSGA3" + Fore.RESET
-                )
-                self.pop_size = valid_pop_size
+            self._set_valid_pop_size()
             ref_dirs = UniformReferenceDirectionFactory(n_dim=self.n_obj, n_points=self.pop_size).do()
             algorithm = NSGA3(
                 pop_size=self.pop_size,
@@ -161,11 +179,9 @@ class GaModel:
         return algorithm
 
     def solve(self, *args, **kwargs) -> None:
-        if self.init_parallelization:
-            self.runner = SerializableStarmapRunner(self.n_pool)
-            self.init_parallelization = False
-            if self.verbose:
-                self.log.info(f"Using parallelization with {self.runner.n_processes} processes.")
+        if self.runner is None and self.parallelization:
+            # self.log.debug("Using parallel evaluation with SerializableStarmapRunner.")
+            self.runner = SerializableStarmapRunner(self.n_pool, logger=self.log)
         elif not self.parallelization:
             if self.verbose:
                 self.log.info("Using single-threaded evaluation.")
@@ -180,7 +196,7 @@ class GaModel:
             logger=self.log,
         )
 
-        if not self.from_dill:
+        if not self.from_dill and not self.istrain:
             repair = ShipConsistencyRepair(self.boundaries.max_num_ships)
             sampling = MixedVariableSampling()
             self.algorithm = self._get_algorithm(repair, sampling)
@@ -198,17 +214,19 @@ class GaModel:
         handle errors and parallelization. close the pool even if an error occurs.
         """
         try:
-            self.algorithm.termination = MaximumGenerationTermination(self.n_gen)
+            # self.algorithm.termination = MaximumGenerationTermination(self.n_gen)
 
             self.res = minimize(
                 self.problem,
                 algo,
+                termination=MaximumGenerationTermination(self.n_gen),
                 seed=42,
                 verbose=self.verbose,
                 copy_algorithm=False,
                 save_history=True,
             )
             self.istrain = True
+            time.sleep(0.3)  # allow some time for logger to finish logging
 
         except Exception as e:
             if self.parallelization:
@@ -348,7 +366,7 @@ class GaModel:
         algorithm_name: str | None = None,
         verbose: bool | int = True,
         logger: Logger | None = None,
-        parallelization: bool = False,
+        parallelization: bool = True,
         n_pool: int | None = None,
         caps_steps: int | None = None,
         **kwargs,
@@ -392,7 +410,7 @@ class GaModel:
             base_config=base_config,
             pop_size=pop_size,
             n_gen=n_gen,
-            algorithm_name=algorithm_name or ("NSGA3" if "NSGA3" in str(sol_dir_path.name) else "NSGA2"),
+            algorithm_name=algorithm_name or ("NSGA3" if "NSGA3" in str(dill_path.stem) else "NSGA2"),
             verbose=verbose,
             logger=log,
             parallelization=parallelization,
@@ -401,13 +419,20 @@ class GaModel:
         )
 
         # Set loaded data
-        algorithm.setup(algorithm.problem, pop_size=pop_size, n_gen=n_gen)
+        algorithm.setup(algorithm.problem, pop_size=instance.pop_size, n_gen=instance.n_gen) #, termination=MaximumGenerationTermination(n_gen))
         instance.problem = algorithm.problem
         instance.algorithm = algorithm
         instance.res = algorithm.result()
         instance.istrain = True
         instance.from_dill = True
         instance._set_results()
+        if instance.algorithm_name == "NSGA3":
+            ref_dirs = UniformReferenceDirectionFactory(n_dim=instance.n_obj, n_points=instance.pop_size).do()
+            algorithm.ref_dirs = ref_dirs
+        algorithm.termination = MaximumGenerationTermination(instance.n_gen)
+        algorithm.problem = None
+        instance.algorithm = algorithm
+        instance.problem = None
 
         return instance
 

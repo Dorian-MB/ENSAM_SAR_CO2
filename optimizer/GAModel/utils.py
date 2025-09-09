@@ -8,6 +8,7 @@ from pymoo.core.repair import Repair
 from pymoo.core.sampling import Sampling
 from pymoo.core.problem import StarmapParallelization
 
+from eco2_normandy.logger import Logger
 
 class MixedVariableSampling(Sampling):
     """
@@ -124,27 +125,32 @@ class ShipConsistencyRepair(Repair):
 
 
 class SerializableStarmapRunner(StarmapParallelization):  # heritage pas obligatoire
-    def __init__(self, n_processes: int | None = None) -> None:
+    def __init__(self, n_processes: int | None = None, logger:Logger|None=None) -> None:
         self.n_processes = n_processes or os.cpu_count()
         self._pool = None
+        self.log = logger or Logger()
 
-    def __call__(self, f, X):
+    def __call__(self, f, X) -> list:
         # Créer le pool à la demande
         if self._pool is None:
+            self.log = Logger()
+            self.log.info(f"Using parallelization with {self.n_processes} processes.")
             self._pool = Pool(self.n_processes)
         return list(self._pool.starmap(f, [[x] for x in X]))
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict:
         # Pour la sérialisation, ne pas inclure le pool
         state = self.__dict__.copy()
         state["_pool"] = None
+        state["log"] = None
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state) -> None:
         # Après désérialisation, le pool sera recréé à la demande
         self.__dict__.update(state)
 
-    def close(self):
+    def close(self) -> None:
         if self._pool:
             self._pool.close()
             self._pool = None
+            self.log.info("Multiprocessing pool closed.")

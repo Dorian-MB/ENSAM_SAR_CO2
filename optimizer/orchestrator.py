@@ -94,7 +94,7 @@ class OptimizationOrchestrator:
             yield s_path, scenario
 
     @staticmethod
-    def _get_unique_scenarios(self, scenario_filter) -> dict:
+    def _get_unique_scenarios(scenario_filter) -> dict:
         phases = {}
         for path, base_config in OptimizationOrchestrator._get_scenarios("scenarios", scenario_filter=scenario_filter):
             phase = path.parts[1]
@@ -249,13 +249,20 @@ class OptimizationOrchestrator:
         save_dir.mkdir(parents=True, exist_ok=True)
 
         phases = {}
-        for phase, base_config in OptimizationOrchestrator._get_unique_scenarios(self, scenario_filter="phase").items():
+        for phase, base_config in OptimizationOrchestrator._get_unique_scenarios(scenario_filter="phase").items():
             base_config["general"]["num_period"] = num_period
             phases[phase] = base_config
 
-        for i, phase in enumerate(sorted(phases.keys())):
+        sorted_phases = sorted(phases.keys())
+        for i, phase in enumerate(sorted_phases):
             self.log.info(Fore.YELLOW + f"=== Starting optimization for phase: {phase} ===" + Fore.RESET)
-            self.model.reset(phases[phase])
+            if self.histories.get(phase):
+                self.log.info(Fore.YELLOW + f"=== Loading model from history for phase: {phase} ===" + Fore.RESET)
+                runner = self.model.runner
+                self.model = self.histories[phase]["model"]
+                self.model.runner = runner
+            else: # runner pass by reset method
+                self.model = self.model.__class__.reset(phases[phase], self.model.__dict__)
 
             keep_alive = True if i < len(phases) - 1 else False
             self.optimize(model_cache=phase, keep_alive=keep_alive, *args, **kwargs)
@@ -277,7 +284,29 @@ class OptimizationOrchestrator:
             "best_solution": self.model.best_solution,
             "kpis": self.get_kpis(),
             "res": self.model.res if hasattr(self.model, "res") else None,
+            "model": self.model,
         }
+
+    def set_up_model(self, phases : str|int) -> None:
+        """Set up the model for a specific phase.
+
+        Args:
+            phases (str | int): The phase to set up the model for. Can be a string (phase name) or an integer (phase index).
+        """
+        if self.histories == {}:
+            raise ValueError("No scores computed, empty history.")
+        if isinstance(phases, str):
+            if phases in self.histories.keys():
+                self.model = self.histories[phases]["model"]
+            else:
+                raise ValueError(f"Phase {phases} not found in histories.")
+        elif isinstance(phases, int):
+            if phases < len(self.histories):
+                self.model = list(self.histories.values())[phases]["model"]
+            else:
+                raise ValueError(f"Phase index {phases} out of range.")
+        else:
+            raise ValueError("phases must be a string (phase name) or an integer (phase index).")
 
     @property
     def scores_per_phases(self) -> dict:
@@ -461,14 +490,16 @@ class OptimizationOrchestrator:
         """Create an OptimizationOrchestrator instance from multiple phases.
 
         Args:
+            model_name: The optimization model type (e.g., "GaModel", "CpModel")
             phases_dir: Directory containing phase configurations.
+            bases_config: List of base configurations for each phase. If None, will be inferred.
             logger: Optional logger instance.
             **kwargs: Additional arguments passed to the OptimizationOrchestrator constructor.
         """
         log = logger or Logger()
 
         if bases_config is None:
-            bases_config = list(sorted(cls._get_unique_scenarios("scenarios", scenario_filter="phase").items(), key=lambda x: x[0]))  # Sort by phase name
+            bases_config = list(sorted(cls._get_unique_scenarios(scenario_filter="phase").items(), key=lambda x: x[0]))  # Sort by phase name
             bases_config = [cfg for _, cfg in bases_config]
 
         paths = []
@@ -506,7 +537,9 @@ class OptimizationOrchestrator:
         model = cls._load_model(
             model_name=model_name, sol_dir_path=sol_dir_path, logger=log, base_config=base_config, **kwargs
         )
-        return cls(model=model, logger=log, **kwargs)
+        instance = cls(model=model, logger=log, **kwargs)
+        instance._save_history_in_cache(model_cache="loaded_model")
+        return instance
 
     @staticmethod
     def _load_model(
