@@ -15,7 +15,6 @@ import dill
 from pymoo.core.repair import Repair
 from pymoo.core.sampling import Sampling
 from pymoo.operators.sampling.rnd import FloatRandomSampling
-
 # from pymoo.operators.sampling.rnd import IntegerRandomSampling
 # from pymoo.operators.mutation.pm import PolynomialMutation
 # from pymoo.operators.crossover.sbx import SBX
@@ -28,6 +27,7 @@ from pymoo.optimize import minimize
 from pymoo.core.result import Result
 from pymoo.core.problem import LoopedElementwiseEvaluation
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
 from multiprocessing import Manager
 from scipy.special import comb
 

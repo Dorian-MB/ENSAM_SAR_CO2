@@ -7,8 +7,7 @@ def flatten(lst: list) -> list:
 
 ## Pareto ####################################################################
 def dominates(m1: dict, m2: dict) -> bool:
-    """Renvoie True si m1 domine strictement m2 sur tous les KPI."""
-    # tous les indicateurs ≤ et au moins un <
+    """Renvoie True si m1 domine m2 (tous les indicateurs ≤ et au moins un <)."""
     return all(m1[k] <= m2[k] for k in m1) and any(m1[k] < m2[k] for k in m1)
 
 
