@@ -12,9 +12,9 @@ node_modules/
 test_simpy.py
 GUI/test/*
 GUI/test_gui.py
-test*.*
+# test*.*
 app.log
-saved/
+# saved/
 .ipynb_checkpoints
 config.yaml
 .venv
