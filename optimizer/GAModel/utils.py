@@ -85,6 +85,10 @@ class ShipConsistencyRepair(Repair):
                 x_dict[f"init{ship_idx + 1}_destination"] = 0  # Le Havre
                 x_dict[f"fixed{ship_idx + 1}_storage_destination"] = 0  # Default
 
+            if num_storages > num_ships:
+                num_storages = num_ships
+                x_dict["num_storages"] = num_storages
+
             # 2. Storage use fixed: not twice the same; and ensure at least one is used; and not more than available
             if num_storages == 2:
                 x_dict["use_Bergen"] = 1

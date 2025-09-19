@@ -225,8 +225,11 @@ class Kpis:
             * self.kpis.get("co2_release_cost_per_ton", 1)
         )
 
+        delay_penalty_per_hour = self.kpis.get("delay_penalty_per_hour", 200)
+        waiting_time = self.get_total_waiting_time()
+        delay_penalty = waiting_time / num_period_per_hours * delay_penalty_per_hour
         # Assume delay penalty is zero for now
-        delay_penalty = 0.0
+        # delay_penalty = 0.0
 
         functional_costs = {
             "Fuel Cost": fuel_cost,
@@ -728,11 +731,11 @@ class Kpis:
         return [
             self.plot_factory_capacity_evolution(),
             self.plot_factory_capacity_evolution_violin(),
-            self.plot_storage_capacity_comparison(),
+            # self.plot_storage_capacity_comparison(),
             self.plot_factory_wasted_production_over_time(),
-            self.plot_travel_duration_evolution(),
+            # self.plot_travel_duration_evolution(),
             self.plot_waiting_time_evolution(),
-            self.plot_co2_transportation(combine_ships=True),
+            # self.plot_co2_transportation(combine_ships=True),
             self.plot_cost_kpis_table(),
-            self.plot_metric_kpis_table(),
+            # self.plot_metric_kpis_table(),
         ]

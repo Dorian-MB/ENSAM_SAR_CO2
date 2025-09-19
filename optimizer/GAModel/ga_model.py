@@ -119,11 +119,10 @@ class GaModel:
             runner=_dict_["runner"],
         )
 
-
-    def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 500) -> list[tuple[int, int]]:
+    def _calculate_valid_population_sizes(self, n_dim: int, max_size: int = 1000) -> list[tuple[int, int]]:
         """Calcule les tailles de population valides pour NSGA3"""
         valid_sizes = []
-        for n_partitions in range(1, 20):  # test jusqu'à 20 partitions
+        for n_partitions in range(1, 21):  # test jusqu'à 20 partitions
             n_points = int(comb(n_partitions + n_dim - 1, n_dim - 1))
             if n_points > max_size:
                 break

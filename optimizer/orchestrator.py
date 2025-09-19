@@ -68,7 +68,7 @@ class OptimizationOrchestrator:
         sol2_cfg["name"] = "solution_2"
         print_diffs(sol1_cfg, sol2_cfg)
 
-    def compare_solution_to_base_config(self, solution: dict = None, base_cfg: dict = None) -> None:
+    def compare_solution_to_base_config(self, solution: pd.Series = None, base_cfg: dict = None) -> None:
         solution = solution if solution is not None else self.model.best_solution
         base_cfg = base_cfg if base_cfg is not None else self.model.base_config
         sol_cfg = self.model.cfg_builder.build(solution, base_config=base_cfg)
@@ -232,7 +232,7 @@ class OptimizationOrchestrator:
         num_period: int = 2_000,
         log_score: bool = False,
         print_diffs: bool = False,
-        save: bool = False,
+        save: bool = True,
         save_dir: str|Path = "saved/model_phases",
         *args,
         **kwargs,
@@ -365,14 +365,14 @@ class OptimizationOrchestrator:
         print(f"Solutions finales: {metrics['n_solutions'].iloc[-1]}")
 
         # Détection de stagnation
-        stagnation = analyzer.detect_stagnation(window_size=10, threshold=0.005)
+        stagnation = analyzer.detect_stagnation(window_size=5, threshold=0.005)
         if stagnation["stagnation_ratio"] > 0.3:
-            print("\n ATTENTION: Plus de 30% du temps en stagnation")
+            print(f"\n ATTENTION: Plus de 30% du temps en stagnation: {stagnation['stagnation_ratio']:.2%}")
 
         # 4. visualisation complète
         fig1 = analyzer.plot_convergence()
-        fig2 = analyzer.plot_stagnation_analysis()
-        fig3 = analyzer.visualize_evolution()
+        # fig2 = analyzer.plot_stagnation_analysis()
+        # fig3 = analyzer.visualize_evolution()
         plt.show()
 
     def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (12, 12)) -> None:
@@ -564,7 +564,7 @@ class OptimizationOrchestrator:
 
         return model
 
-    def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
+    def build_config_from_solution(self, solution: dict, algorithm: str | None = None, model=None, *args, **kwargs) -> dict:
         """
         Build a configuration dictionary from a solution.
 
@@ -575,21 +575,26 @@ class OptimizationOrchestrator:
         Returns:
             dict: The built configuration dictionary.
         """
-        return self.model.cfg_builder.get_config_from_solution(
-            solution, algorithm=algorithm or self.model.algorithm_name, *args, **kwargs
+        if model is None:
+            model = self.model
+        return model.cfg_builder.get_config_from_solution(
+            solution, algorithm=algorithm or model.algorithm_name, *args, **kwargs
         )
 
     def render_best_solution(self, *args, **kwargs) -> None:
         config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_solution(self, solution=int|None, *args, **kwargs) -> None:
+    def render_solution(self, solution=int|None, model:int|None=None, *args, **kwargs) -> None:
+        if model is None:
+            model = self.model
+        if isinstance(model, int):
+            model = list(self.histories.values())[model]["model"]
         if solution is None:
             solution = self.model.best_solution
-        elif isinstance(solution, int):
+        if isinstance(solution, int):
             solution = list(self.histories.values())[solution]["best_solution"]
-
-        config = self.build_config_from_solution(solution, *args, **kwargs)
+        config = self.build_config_from_solution(solution, model=model, *args, **kwargs)
         self._run_animation(config)
 
     def render_heuristic_solution(self, solution: dict) -> None:
@@ -598,8 +603,6 @@ class OptimizationOrchestrator:
 
     def _run_animation(self, config: dict) -> None:
         from GUI import PGAnime
-
-        print(config)
         PGAnime(config).run()
 
 

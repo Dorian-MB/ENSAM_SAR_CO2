@@ -116,6 +116,7 @@ class Factory(Port):
         # var for production
         self._maintenance_counters = [0] * len(self.sources)
         self._maintenance_flags = [False] * len(self.sources)
+        self._total_maintenance_time = 0
 
         self.__dict__.update(kwargs)
         self.action = env.process(self.run())
@@ -129,6 +130,7 @@ class Factory(Port):
             "capacity_max",
             "number_of_tanks",
             "cost_per_tank",
+            "_total_maintenance_time",
         ]
         self.history.append({k: getattr(self, k) for k in states_to_save})
 
@@ -140,6 +142,7 @@ class Factory(Port):
         production_rate = 0
         for i, source in enumerate(self.sources):
             if self._maintenance_counters[i] == 0:
+                # Taux de maintenance pour la source, sur 1h. Calculé en début d'heure.
                 self._maintenance_flags[i] = random.random() < source["maintenance_rate"]
 
             # Si aucune maintenance n'est active durant l'heure, on ajoute la production
@@ -148,8 +151,11 @@ class Factory(Port):
                 production_rate += source["annual_production_capacity"] / (
                     NUM_HOURS_IN_YEARS * self.num_period_per_hours
                 )
+            else:
+                self._total_maintenance_time += 1/self.num_period_per_hours
 
             # Passage à la période suivante dans l'heure pour cette source
+            # Remet à zéro quand le compteur atteint num_period_per_hours (fin d'heure)
             self._maintenance_counters[i] = (self._maintenance_counters[i] + 1) % self.num_period_per_hours
 
         return production_rate

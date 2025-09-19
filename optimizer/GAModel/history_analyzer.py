@@ -9,6 +9,8 @@ from pymoo.indicators.hv import HV
 # from pymoo.util.normalization import normalize
 import warnings
 
+from optimizer import boundaries
+
 warnings.filterwarnings("ignore")
 
 plt.style.use("ggplot")
@@ -116,7 +118,7 @@ class NSGA3HistoryAnalyzer:
                 metrics["mean_cv"].append(0)
 
         return pd.DataFrame(metrics)
-
+    
     def plot_convergence(self, metrics_df=None, figsize=(15, 10)):
         """Visualisation de la convergence avec plusieurs métriques"""
         if metrics_df is None:
@@ -127,6 +129,8 @@ class NSGA3HistoryAnalyzer:
 
         # 1. Hypervolume
         ax = axes[0, 0]
+        # hv_theoretical = self.estimate_hv_upper_bound()
+        # ax.axhline(hv_theoretical, color="red", linestyle="--", label="HV Théorique")
         ax.plot(metrics_df["generation"], metrics_df["hypervolume"], "b-", linewidth=2)
         ax.scatter(metrics_df["generation"], metrics_df["hypervolume"], c="blue", s=30)
         ax.set_xlabel("Génération")
@@ -226,12 +230,17 @@ class NSGA3HistoryAnalyzer:
         return pd.DataFrame(comparison).T
 
     @staticmethod
-    def plot_algorithms_comparison(results_dict, figsize=(15, 5)):
+    def plot_algorithms_comparison(results_dict, figsize=(15, 5), title:str=""):
         """Visualisation de la comparaison entre algorithmes"""
         fig, axes = plt.subplots(1, 3, figsize=figsize)
-        fig.suptitle("Comparaison des Algorithmes NSGA3", fontsize=16)
 
-        colors = plt.cm.Set3(np.linspace(0, 1, len(results_dict)))
+        # Alternatives de palettes de couleurs:
+        # colors = plt.cm.tab10(np.linspace(0, 1, len(results_dict)))        # Couleurs vives et contrastées
+        colors = plt.cm.Dark2(np.linspace(0, 1, len(results_dict)))        # Couleurs sombres et élégantes
+        # colors = plt.cm.Paired(np.linspace(0, 1, len(results_dict)))       # Couleurs appariées
+        # colors = plt.cm.viridis(np.linspace(0, 1, len(results_dict)))      # Gradient moderne 
+        # colors = plt.cm.plasma(np.linspace(0, 1, len(results_dict)))       # Gradient violet-rose
+        # colors = plt.cm.coolwarm(np.linspace(0, 1, len(results_dict)))     # Bleu-rouge
 
         for idx, (algo_name, res) in enumerate(results_dict.items()):
             analyzer = NSGA3HistoryAnalyzer(res)
@@ -264,6 +273,11 @@ class NSGA3HistoryAnalyzer:
         axes[2].set_ylabel("Spread")
         axes[2].legend()
         axes[2].grid(True, alpha=0.3)
+
+        if title:
+            fig.suptitle(title, fontsize=16)
+        else:
+            fig.suptitle("Comparaison des Algorithmes NSGA3", fontsize=16)
 
         plt.tight_layout()
         return fig
@@ -325,7 +339,7 @@ class NSGA3HistoryAnalyzer:
             "stagnation_ratio": sum(p["end"] - p["start"] + 1 for p in merged_periods) / len(hv_values),
         }
 
-    def plot_stagnation_analysis(self, window_size=5, threshold=0.01, figsize=(15, 5)):
+    def plot_stagnation_analysis(self, window_size=10, threshold=0.005, figsize=(15, 5)):
         """Visualise l'analyse de stagnation"""
         stagnation_info = self.detect_stagnation(window_size, threshold)
         metrics = self.analyze_convergence()
@@ -484,6 +498,34 @@ Périodes détectées:"""
     # ========================================================================
     # MÉTHODES UTILITAIRES
     # ========================================================================
+    
+    @staticmethod
+    def estimate_hv_upper_bound(): # Trop elevé 
+        bounds = boundaries.get_kpis_boundaries().T
+
+        # Point idéal : meilleur sur chaque objectif individuellement
+        ideal_point = np.array([
+            bounds["cost"]["min"],
+            bounds["wasted_production_over_time"]["min"], 
+            bounds["waiting_time"]["min"],
+            bounds["underfill_rate"]["min"]  
+        ])
+        
+        # Point nadir : pire acceptable sur chaque objectif
+        nadir_point = np.array([
+            bounds["cost"]["max"],  
+            bounds["wasted_production_over_time"]["max"],
+            bounds["waiting_time"]["max"],
+            bounds["underfill_rate"]["max"]
+        ])
+        
+        # HV max théorique = volume de l'hyperboîte
+        hv_max_theoretical = np.prod(nadir_point - ideal_point)
+        
+        # En pratique, le vrai max est ~40-60% de cette borne
+        hv_max_realistic = hv_max_theoretical * 0.3
+        
+        return hv_max_realistic
 
     def _normalize_objectives(self, F):
         """Normalise les objectifs entre 0 et 1"""
