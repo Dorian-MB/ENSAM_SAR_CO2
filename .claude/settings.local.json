@@ -6,7 +6,10 @@
       "Bash(python:*)",
       "Bash(poetry --version)",
       "Bash(poetry run:*)",
-      "WebFetch(domain:realpython.com)"
+      "WebFetch(domain:realpython.com)",
+      "WebFetch(domain:www.sciencedirect.com)",
+      "WebFetch(domain:ieeexplore.ieee.org)",
+      "WebFetch(domain:journals.sagepub.com)"
     ],
     "deny": [],
     "ask": []

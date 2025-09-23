@@ -175,7 +175,7 @@ class ConfigBuilderFromSolution:
             self.boundaries.factory_cost_per_tank["min"],
         )
         cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
-        cfg["factory"]["initial_capacity"] = int(cfg["factory"]["capacity_max"] * 0.8) # 80% full at start
+        cfg["factory"]["initial_capacity"] = int(cfg["factory"]["capacity_max"] * 0.8) # 80% full at start => but : convergence plus vite (etre plus vite en "regime stationnaire") 
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = ""
