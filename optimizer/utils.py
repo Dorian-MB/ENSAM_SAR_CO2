@@ -20,7 +20,7 @@ metrics_keys: list[str] = [
     "waiting_time",
     "underfill_rate",
 ]
-metrics_weight: list[int] = [20, 20, 10, 15]
+metrics_weight: list[int] = [25, 20, 10, 15]
 
 
 def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys, return_kpis=False) -> pd.DataFrame:
@@ -75,10 +75,9 @@ def evaluate_single_scenario(scenario: dict, return_score: bool = True) -> pd.Da
     sim.run()
     result, kpis = calculate_performance_metrics(scenario, sim, return_kpis=True)
     if return_score:
-        if not hasattr(evaluate_single_scenario, "normalize"):
-            evaluate_single_scenario.normalize = Normalizer()
-        norm_df = evaluate_single_scenario.normalize(result)
-        result["score"] = evaluate_single_scenario.normalize.compute_score(norm_df)
+        normalize = Normalizer()
+        norm_df = normalize(result)
+        result["score"] = normalize.compute_score(norm_df)
     return result, kpis
 
 
@@ -176,7 +175,7 @@ class ConfigBuilderFromSolution:
             self.boundaries.factory_cost_per_tank["min"],
         )
         cfg["factory"]["cost_per_tank"] = self.predict_cost(sol["number_of_tanks"], X, Y)
-        cfg["factory"]["initial_capacity"] = cfg["factory"]["capacity_max"]//2
+        cfg["factory"]["initial_capacity"] = int(cfg["factory"]["capacity_max"] * 0.8) # 80% full at start => but : convergence plus vite (etre plus vite en "regime stationnaire") 
 
         storage = deepcopy(cfg["storages"][0])
         storage["name"] = ""

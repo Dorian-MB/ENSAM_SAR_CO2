@@ -15,6 +15,7 @@ GUI/test_gui.py
 test*.*
 app.log
 saved/
+Rapport/
 .ipynb_checkpoints
 config.yaml
 .venv

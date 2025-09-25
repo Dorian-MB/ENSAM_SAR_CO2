@@ -1,3 +1,4 @@
+import enum
 import time
 import cProfile, pstats
 import os
@@ -13,6 +14,7 @@ import dill
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+import plotly.graph_objects as go
 from colorama import Fore
 from typing import Generator
 from pymoo.core.result import Result
@@ -68,7 +70,7 @@ class OptimizationOrchestrator:
         sol2_cfg["name"] = "solution_2"
         print_diffs(sol1_cfg, sol2_cfg)
 
-    def compare_solution_to_base_config(self, solution: dict = None, base_cfg: dict = None) -> None:
+    def compare_solution_to_base_config(self, solution: pd.Series = None, base_cfg: dict = None) -> None:
         solution = solution if solution is not None else self.model.best_solution
         base_cfg = base_cfg if base_cfg is not None else self.model.base_config
         sol_cfg = self.model.cfg_builder.build(solution, base_config=base_cfg)
@@ -232,7 +234,7 @@ class OptimizationOrchestrator:
         num_period: int = 2_000,
         log_score: bool = False,
         print_diffs: bool = False,
-        save: bool = False,
+        save: bool = True,
         save_dir: str|Path = "saved/model_phases",
         *args,
         **kwargs,
@@ -331,23 +333,26 @@ class OptimizationOrchestrator:
         kpis = Kpis(sim.result, cfg)
         return kpis
 
-    def plot_kpis(self, kpis: Kpis | int | None = None) -> None:
+    def plot_kpis(self, kpis: Kpis | int | None = None, show: bool = True) -> list[go.Figure]:
         """Plot the KPIs.
         Defaults to the current KPIs model if none are provided.
 
         Args:
             kpis (Kpis | int | None, optional): The KPIs to plot. if int use phase history. Defaults to None.
+            show (bool, optional): Whether to display the plots. Defaults to True.
         """
         if kpis is None:
             kpis = self.get_kpis()
         elif isinstance(kpis, int):
             # kpis = [history['kpis'] for i, history in enumerate(self.histories.values()) if i == kpis][-1]
             kpis = list(self.histories.values())[kpis]["kpis"]
+        figs = kpis.generate_kpis_graphs()
+        if show:
+            for plot in figs:
+                plot.show()
+        return figs
 
-        for plot in kpis.generate_kpis_graphs():
-            plot.show()
-
-    def plot_model_performance(self, res: Result | int = None) -> None:
+    def plot_model_performance(self, res: Result | int = None, show: bool = True) -> list[plt.Figure]:
         # 1. Vérification des résultats
         if res is None:
             res = self.model.res
@@ -365,17 +370,20 @@ class OptimizationOrchestrator:
         print(f"Solutions finales: {metrics['n_solutions'].iloc[-1]}")
 
         # Détection de stagnation
-        stagnation = analyzer.detect_stagnation(window_size=10, threshold=0.005)
+        stagnation = analyzer.detect_stagnation(window_size=5, threshold=0.005)
         if stagnation["stagnation_ratio"] > 0.3:
-            print("\n ATTENTION: Plus de 30% du temps en stagnation")
+            print(f"\n ATTENTION: Plus de 30% du temps en stagnation: {stagnation['stagnation_ratio']:.2%}")
 
         # 4. visualisation complète
         fig1 = analyzer.plot_convergence()
-        fig2 = analyzer.plot_stagnation_analysis()
-        fig3 = analyzer.visualize_evolution()
-        plt.show()
+        # fig2 = analyzer.plot_stagnation_analysis()
+        # fig3 = analyzer.visualize_evolution()
+        figs = [fig1] #, fig2, fig3]
+        if show:
+            plt.show()
+        return figs
 
-    def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (12, 12)) -> None:
+    def plot_pareto(self, scores: pd.DataFrame | int = None, figsize: tuple | list = (12, 12), show: bool = True) -> plt.Figure:
         """Plot the pareto front of the optimization.
 
         Args:
@@ -438,7 +446,20 @@ class OptimizationOrchestrator:
                 ax.set_xlabel(name)
                 ax.set_ylabel(other_metrics_name[j])
                 fig.tight_layout()
-        plt.show()
+        
+        if show:
+            plt.show()
+        return fig
+
+    def plot_financial_analysis_graphs(self, kpis:Kpis| int= None) -> None:
+        """Plot financial analysis graphs."""
+        if kpis is None:
+            kpis = self.get_kpis()
+        elif isinstance(kpis, int):
+            kpis = list(self.histories.values())[kpis]["kpis"]
+        figs = kpis.generate_advanced_analysis_graphs()
+        for plot in figs:
+            plot.show()
 
     def plot_all(self, i:int = None) -> None:
         """Plot all available plots.
@@ -449,6 +470,36 @@ class OptimizationOrchestrator:
         self.plot_model_performance(i)
         self.plot_pareto(i)
         self.plot_kpis(i)
+
+    def save_figs(self, main_dir: str|Path = "./saved/figures", save_dir: str = "model_phase", save_name: str = "", index: bool = True) -> None:
+        if isinstance(main_dir, str):
+            main_dir = Path(main_dir)
+        main_dir = main_dir / save_dir
+        main_dir.mkdir(parents=True, exist_ok=True)
+
+        delta_t = time.perf_counter()
+        figs1 = self.plot_model_performance(show=False)
+        for i, fig in enumerate(figs1):
+            fig.savefig(main_dir / f"model_performance{save_name}_{i}.png", dpi=300)
+
+        fig2 = self.plot_pareto(show=False)
+        fig2.savefig(main_dir / f"pareto_front{save_name}.png", dpi=300)
+
+        # Sauvegarder les figures Plotly des KPIs (sans les afficher)
+        # Option 1: Avec le paramètre show=False
+        kpis_figs = self.plot_kpis(show=False)
+        
+        # Option 2: Directement via generate_kpis_graphs() (évite plot.show())
+        # kpis = self.get_kpis()
+        # kpis_figs = kpis.generate_kpis_graphs()
+        
+        for i, fig in enumerate(kpis_figs):
+            fig.write_html(main_dir / f"kpis{save_name}_{i}.html")
+
+        delta_t = time.perf_counter() - delta_t
+        self.log.info(Fore.GREEN + "=== Figures Sauvegardées ===" + Fore.RESET)
+        self.log.info(f"Figures saved in {Fore.CYAN + str(main_dir.resolve()) + Fore.RESET} directory")
+        self.log.info(Fore.LIGHTGREEN_EX + f"Saving took {delta_t:.2f} seconds." + Fore.RESET)
 
     def log_score(self) -> None:
         """
@@ -564,7 +615,7 @@ class OptimizationOrchestrator:
 
         return model
 
-    def build_config_from_solution(self, solution: dict, algorithm: str | None = None, *args, **kwargs) -> dict:
+    def build_config_from_solution(self, solution: dict, algorithm: str | None = None, model=None, *args, **kwargs) -> dict:
         """
         Build a configuration dictionary from a solution.
 
@@ -575,21 +626,26 @@ class OptimizationOrchestrator:
         Returns:
             dict: The built configuration dictionary.
         """
-        return self.model.cfg_builder.get_config_from_solution(
-            solution, algorithm=algorithm or self.model.algorithm_name, *args, **kwargs
+        if model is None:
+            model = self.model
+        return model.cfg_builder.get_config_from_solution(
+            solution, algorithm=algorithm or model.algorithm_name, *args, **kwargs
         )
 
     def render_best_solution(self, *args, **kwargs) -> None:
         config = self.build_config_from_solution(self.model.best_solution, *args, **kwargs)
         self._run_animation(config)
 
-    def render_solution(self, solution=int|None, *args, **kwargs) -> None:
+    def render_solution(self, solution=int|None, model:int|None=None, *args, **kwargs) -> None:
+        if model is None:
+            model = self.model
+        if isinstance(model, int):
+            model = list(self.histories.values())[model]["model"]
         if solution is None:
             solution = self.model.best_solution
-        elif isinstance(solution, int):
+        if isinstance(solution, int):
             solution = list(self.histories.values())[solution]["best_solution"]
-
-        config = self.build_config_from_solution(solution, *args, **kwargs)
+        config = self.build_config_from_solution(solution, model=model, *args, **kwargs)
         self._run_animation(config)
 
     def render_heuristic_solution(self, solution: dict) -> None:
@@ -598,8 +654,6 @@ class OptimizationOrchestrator:
 
     def _run_animation(self, config: dict) -> None:
         from GUI import PGAnime
-
-        print(config)
         PGAnime(config).run()
 
 

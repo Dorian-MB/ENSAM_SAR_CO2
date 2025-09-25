@@ -159,7 +159,7 @@ class Kpis:
         num_factory_tanks = self.safe_float_conversion(initial_row_factory["number_of_tanks"])
         cost_per_tank = self.safe_float_conversion(initial_row_factory["cost_per_tank"])
         scale_ratio = 1.2
-        tank_total_cost_in_factory = num_factory_tanks * cost_per_tank * scale_ratio
+        tank_total_cost_in_factory = num_factory_tanks * cost_per_tank # * scale_ratio
 
         initial_row_ship = ships_df[self.ship_names[0]].iloc[0]
         total_ships_buying_costs = (
@@ -225,8 +225,11 @@ class Kpis:
             * self.kpis.get("co2_release_cost_per_ton", 1)
         )
 
+        delay_penalty_per_hour = self.kpis.get("delay_penalty_per_hour", 200)
+        waiting_time = self.get_total_waiting_time()
+        delay_penalty = waiting_time / num_period_per_hours * delay_penalty_per_hour
         # Assume delay penalty is zero for now
-        delay_penalty = 0.0
+        # delay_penalty = 0.0
 
         functional_costs = {
             "Fuel Cost": fuel_cost,
@@ -724,15 +727,263 @@ class Kpis:
 
         return fig
 
+    def plot_investment_vs_operational_comparison(self) -> go.Figure:
+        """Compare initial investment costs vs operational costs extrapolated to 1 year."""
+        kpis = self.calculate_functional_kpis()
+        initial_investment = kpis["Initial Investment"]
+        functional_costs = kpis["Functional Costs"]
+
+        # Extrapolate operational costs to 1 year
+        simulation_hours = self.num_period  # 2000 steps of 1 hour each
+        hours_per_year = 365 * 24  # 8760 hours per year
+        extrapolation_factor = hours_per_year / simulation_hours
+
+        categories = [
+            "Initial Investment",
+            f"Operational Costs (simulation: {simulation_hours}h)",
+            f"Operational Costs (extrapolated: 1 year)"
+        ]
+        total_investment = sum(initial_investment.values())
+        total_operational_sim = functional_costs["Total Cost"]
+        total_operational_year = total_operational_sim * extrapolation_factor
+
+        values = [total_investment, total_operational_sim, total_operational_year]
+        colors = ['#1f77b4', '#ff7f0e', '#ff4500']
+
+        fig = go.Figure(data=[
+            go.Bar(
+                x=categories,
+                y=values,
+                text=[self._format_costs(val) for val in values],
+                textposition='auto',
+                marker=dict(color=colors)
+            )
+        ])
+
+        # Add annotation explaining the extrapolation
+        fig.add_annotation(
+            x=2, y=total_operational_year,
+            text=f"x{extrapolation_factor:.1f} factor<br>({simulation_hours}h to {hours_per_year}h)",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="black",
+            arrowwidth=1,
+            font=dict(size=10),
+            bgcolor="white",
+            bordercolor="black",
+            borderwidth=1
+        )
+
+        fig.update_layout(
+            template="ggplot2",
+            title="Initial Investment vs Operational Costs Comparison<br><sub>Operational costs shown for simulation period and extrapolated to 1 year</sub>",
+            xaxis_title="Cost Type",
+            yaxis_title="Cost (€)",
+            yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
+            xaxis=dict(showgrid=False),
+            showlegend=False,
+            height=600
+        )
+
+        return fig
+
+    def plot_cost_breakdown_pie(self) -> go.Figure:
+        """Show cost breakdown as pie chart with operational costs extrapolated to 1 year."""
+        kpis = self.calculate_functional_kpis()
+        initial_investment = kpis["Initial Investment"]
+        functional_costs = kpis["Functional Costs"]
+
+        # Extrapolate operational costs to 1 year
+        simulation_hours = self.num_period
+        hours_per_year = 365 * 24
+        extrapolation_factor = hours_per_year / simulation_hours
+
+        labels = list(initial_investment.keys()) + [
+            "Fuel Cost (1 year)", "Navigation Cost (1 year)", "Stoppage Cost (1 year)",
+            "CO2 Storage Cost (1 year)", "Released CO2 Cost (1 year)", "Delay Cost (1 year)"
+        ]
+
+        values = list(initial_investment.values()) + [
+            functional_costs["Fuel Cost"] * extrapolation_factor,
+            functional_costs["Navigation Cost"] * extrapolation_factor,
+            functional_costs["Boat Stoppage Cost"] * extrapolation_factor,
+            functional_costs["CO2 Storage Cost"] * extrapolation_factor,
+            functional_costs["co2_released_cost"] * extrapolation_factor,
+            functional_costs["Delay Cost"] * extrapolation_factor
+        ]
+
+        fig = go.Figure(data=[
+            go.Pie(
+                labels=labels,
+                values=values,
+                textinfo='label+percent',
+                textposition='auto',
+                hovertemplate='<b>%{label}</b><br>Value: %{text}<br>Percentage: %{percent}<extra></extra>',
+                text=[self._format_costs(val) for val in values]
+            )
+        ])
+
+        fig.update_layout(
+            template="ggplot2",
+            title=f"Total Cost Breakdown Distribution<br><sub>Operational costs extrapolated to 1 year (x{extrapolation_factor:.1f})</sub>",
+            showlegend=True,
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02)
+        )
+
+        return fig
+
+    def plot_ships_efficiency_metrics(self) -> go.Figure:
+        """Plot efficiency metrics for each ship."""
+        ships_data = []
+        trips_sum = self.trips.sum()
+
+        for ship_name in self.ship_names:
+            nav_time = trips_sum.get((ship_name, "NAVIGATING"), 0)
+            wait_time = trips_sum.get((ship_name, "WAITING"), 0) + trips_sum.get((ship_name, "DOCKED"), 0)
+            total_time = nav_time + wait_time
+
+            efficiency = (nav_time / total_time * 100) if total_time > 0 else 0
+
+            ships_data.append({
+                'Ship': ship_name,
+                'Navigation Time': nav_time,
+                'Waiting Time': wait_time,
+                'Efficiency (%)': efficiency
+            })
+
+        df = pd.DataFrame(ships_data)
+
+        fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=('Time Distribution by Ship', 'Ship Efficiency'),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+        )
+
+        # Stacked bar chart for time distribution
+        fig.add_trace(
+            go.Bar(name='Navigation Time', x=df['Ship'], y=df['Navigation Time'],
+                   marker_color='#1f77b4'), row=1, col=1
+        )
+        fig.add_trace(
+            go.Bar(name='Waiting Time', x=df['Ship'], y=df['Waiting Time'],
+                   marker_color='#ff7f0e'), row=1, col=1
+        )
+
+        # Efficiency bar chart
+        fig.add_trace(
+            go.Bar(name='Efficiency (%)', x=df['Ship'], y=df['Efficiency (%)'],
+                   marker_color='#2ca02c', showlegend=False), row=1, col=2
+        )
+
+        fig.update_layout(
+            template="ggplot2",
+            title="Ships Operational Efficiency Analysis",
+            barmode='stack',
+            height=500
+        )
+
+        fig.update_xaxes(title_text="Ships", row=1, col=1)
+        fig.update_xaxes(title_text="Ships", row=1, col=2)
+        fig.update_yaxes(title_text="Time (hours)", row=1, col=1)
+        fig.update_yaxes(title_text="Efficiency (%)", row=1, col=2)
+
+        return fig
+
+    def plot_co2_flow_analysis(self) -> go.Figure:
+        """Analyze CO2 flow through the system."""
+        factory_df = self.dfs[self.factory_name]
+
+        # Production vs waste over time
+        production_rate = factory_df['production_rate'].iloc[0] if 'production_rate' in factory_df.columns else 100
+        total_production = production_rate * len(factory_df)
+        wasted = self.wasted_production()
+        transported = total_production - wasted
+
+        # CO2 stored in each storage
+        storage_data = []
+        for storage_name in self.storage_names:
+            stored = self.dfs[storage_name]["received_co2_over_time"].iloc[-1]
+            storage_data.append({'Storage': storage_name, 'CO2 Stored': stored})
+
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('CO2 Production vs Waste', 'CO2 Distribution by Storage',
+                          'Factory Capacity Utilization', 'Waste Accumulation'),
+            specs=[[{"type": "xy"}, {"type": "xy"}],
+                   [{"type": "xy"}, {"type": "xy"}]]
+        )
+
+        # Production vs Waste bar chart (instead of pie)
+        fig.add_trace(go.Bar(
+            x=['Transported', 'Wasted'],
+            y=[transported, wasted],
+            name="CO2 Flow",
+            marker=dict(color=['#2ca02c', '#d62728']),
+            showlegend=False
+        ), row=1, col=1)
+
+        # Storage distribution
+        if storage_data:
+            storage_df = pd.DataFrame(storage_data)
+            fig.add_trace(go.Bar(
+                x=storage_df['Storage'],
+                y=storage_df['CO2 Stored'],
+                name="Storage Distribution",
+                showlegend=False
+            ), row=1, col=2)
+
+        # Factory capacity utilization over time
+        capacity_utilization = (factory_df['capacity'] / factory_df['capacity_max']) * 100
+        fig.add_trace(go.Scatter(
+            x=factory_df.index,
+            y=capacity_utilization,
+            mode='lines',
+            name="Capacity Utilization",
+            showlegend=False
+        ), row=2, col=1)
+
+        # Waste accumulation
+        waste_cumsum = self.wasted_production_over_time()
+        fig.add_trace(go.Scatter(
+            x=waste_cumsum.index,
+            y=waste_cumsum,
+            mode='lines',
+            name="Cumulative Waste",
+            showlegend=False
+        ), row=2, col=2)
+
+        fig.update_layout(
+            template="ggplot2",
+            title="CO2 Flow and System Analysis",
+            height=800,
+            showlegend=True
+        )
+
+        fig.update_yaxes(title_text="CO2 (tons)", row=1, col=1)
+        fig.update_yaxes(title_text="CO2 Stored (tons)", row=1, col=2)
+        fig.update_yaxes(title_text="Utilization (%)", row=2, col=1)
+        fig.update_yaxes(title_text="Cumulative Waste (tons)", row=2, col=2)
+
+        return fig
+
     def generate_kpis_graphs(self) -> list[go.Figure]:
         return [
             self.plot_factory_capacity_evolution(),
             self.plot_factory_capacity_evolution_violin(),
-            self.plot_storage_capacity_comparison(),
+            # self.plot_storage_capacity_comparison(),
             self.plot_factory_wasted_production_over_time(),
-            self.plot_travel_duration_evolution(),
+            # self.plot_travel_duration_evolution(),
             self.plot_waiting_time_evolution(),
-            self.plot_co2_transportation(combine_ships=True),
+            # self.plot_co2_transportation(combine_ships=True),
             self.plot_cost_kpis_table(),
-            self.plot_metric_kpis_table(),
+            # self.plot_metric_kpis_table(),
+        ]
+
+    def generate_advanced_analysis_graphs(self) -> list[go.Figure]:
+        """Generate advanced financial and operational analysis graphs."""
+        return [
+            self.plot_investment_vs_operational_comparison(),
+            self.plot_cost_breakdown_pie(),
+            self.plot_ships_efficiency_metrics(),
+            self.plot_co2_flow_analysis(),
         ]

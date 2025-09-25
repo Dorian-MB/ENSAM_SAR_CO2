@@ -31,6 +31,7 @@ class Simulation:
         logger=None,
         verbose=True,
     ):
+        # assert isinstance(config, dict) and all(isinstance(v, dict | list) for k, v in config.items() if k!="name"), "Config must be a dictionary of dictionaries or list."
         Simulation.n_simu += 1
         self.logger = logger or Logger()
         self.config_name = config_name
@@ -127,10 +128,9 @@ class Simulation:
 
 if __name__ == "__main__":
     from eco2_normandy.tools import get_simlulation_variable
-
-    path = "scenarios\dev\phase3_bergen_18k_2boats.yaml"
-    path = "config.yaml"
+    path = "scenarios/dev/phase3_bergen_18k_2boats.yaml"
     config = get_simlulation_variable(path)[0]
     config["general"]["num_period"] = 1000
-    sim = Simulation("test", config, verbose=True)
+    sim = Simulation(config=config, config_name="test", verbose=True)
     sim.run()
+    print(sim.factory._total_maintenance_time)
