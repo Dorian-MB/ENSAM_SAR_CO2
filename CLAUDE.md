@@ -190,6 +190,7 @@ The end goal of the project is writing an internship report following the exampl
 Reminder: The project aim to simulate and optimize co2 transport between 2 or 3 ports.
 Simulation is done with simpy and have constraint (ship capacity, etc (see .yaml file)).
 Optimization aim to minimize well chosen metrics that discribe the simulation, The optimization is done on 4 parts, each part aim to increase factory co2 production (i.e. more co2 to transport), and each part represent 1 years (for computation efficiency simulation is done on 2000 steps). 
+The project came from "Air liquid" company.
 
 ### Report Writing Guidelines
 
@@ -234,3 +235,4 @@ In the `Rapport` folder you can find the following files:
 - "instruction_rapport_de_stage.pdf": Official instructions
 - "Grille notation des stges M2.pdf": Intruction grid for notation.
 - "AIR LIQUIDE FINAL PRESENTATION V2.pdf": difine project
+- "Aide_rapport_stage.pdf": powerpoint of the report
