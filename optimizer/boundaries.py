@@ -199,7 +199,7 @@ class KpisBoundaries:
         scenarios = get_all_scenarios("scenarios/")
         self._kpis_list = []
         for i, (path, config) in enumerate(scenarios):
-            config["general"]["num_period"] = 2000  # Set to 2000 for reproducibility and stable kpis results
+            config["general"]["num_period"] = int(365*24)  # Set to 1 year for reproducibility and stable kpis results
             sim = Simulation(config, verbose=False)
             sim.run()
             self._kpis_list.append(calculate_performance_metrics(config, sim).to_dict(orient="records")[0])

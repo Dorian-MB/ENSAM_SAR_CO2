@@ -26,17 +26,20 @@ metrics_weight: list[int] = [25, 20, 10, 15]
 def calculate_performance_metrics(cfg, sim, metrics_keys=metrics_keys, return_kpis=False) -> pd.DataFrame:
     """Évalue la configuration en lançant la simulation."""
     dfs = sim.result
-    kpis = Kpis(dfs, cfg)
+    num_steps = cfg["general"]["num_period"] # Normalize by number of steps
+    kpis = Kpis(dfs, cfg) 
     functional_cost = kpis.calculate_functional_kpis()
-    cost = functional_cost["Combined Total Cost"]
-    wasted_production_over_time = kpis.wasted_production()
-    waiting_time = kpis.get_total_waiting_time()
+    cost = functional_cost["Extrapolated Combined Total Cost (1 year)"] 
+    wasted_production_over_time = kpis.wasted_production() / num_steps
+    waiting_time = kpis.get_total_waiting_time() / num_steps
     factory_filling_rate = kpis.factory_filling_rate()  # want to maximize, so we will use -factory_filling_rate
+    under_filling_rate = 1 - factory_filling_rate
+    under_filling_rate = abs(under_filling_rate.clip(0, 1) - 0.5) # aim for 50% filling rate, penalize both over and under filling
     metrics = {
         k: v
         for k, v in zip(
             metrics_keys,
-            [cost, wasted_production_over_time, waiting_time, 1 - factory_filling_rate],
+            [cost, wasted_production_over_time, waiting_time, under_filling_rate],
         )
     }
     if return_kpis:

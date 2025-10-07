@@ -62,6 +62,8 @@ class NSGA3HistoryAnalyzer:
                     all_F.append(algo.opt.get("F"))
             if all_F:
                 all_F = np.vstack(all_F)
+                # ref point => Point nadir = pire valeur pour chaque objectif parmi les non-dominées
+                # Ajouter un offset 1.1 pour garantir que r > toutes solutions
                 ref_point = np.max(all_F, axis=0) * 1.1
             else:
                 ref_point = np.ones(self.n_obj)

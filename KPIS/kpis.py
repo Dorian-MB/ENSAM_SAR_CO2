@@ -248,10 +248,23 @@ class Kpis:
             + functional_costs["Total Cost"]
         )
 
+        # Extrapolate operational costs to 1 year
+        simulation_hours = self.num_period  # 2000 steps of 1 hour each
+        hours_per_year = 365 * 24  # 8760 hours per year
+        extrapolation_factor = hours_per_year / simulation_hours
+
+        extrapolated_combined_total_cost = (
+            initial_investment["Storage Tank Purchase Cost"]
+            + initial_investment["Boat Purchase Cost"]
+            + functional_costs["Total Cost"] * extrapolation_factor
+        )
+
         # Populate the KPIs dictionary
         kpis["Initial Investment"] = initial_investment
         kpis["Functional Costs"] = functional_costs
         kpis["Combined Total Cost"] = combined_total_cost
+        kpis["Extrapolated Combined Total Cost (1 year)"] = extrapolated_combined_total_cost
+        kpis["extrapolation_factor"] = extrapolation_factor
 
         return kpis
 
@@ -732,23 +745,17 @@ class Kpis:
         kpis = self.calculate_functional_kpis()
         initial_investment = kpis["Initial Investment"]
         functional_costs = kpis["Functional Costs"]
-
-        # Extrapolate operational costs to 1 year
-        simulation_hours = self.num_period  # 2000 steps of 1 hour each
-        hours_per_year = 365 * 24  # 8760 hours per year
-        extrapolation_factor = hours_per_year / simulation_hours
+        extrapolation_factor = kpis["extrapolation_factor"]
 
         categories = [
             "Initial Investment",
-            f"Operational Costs (simulation: {simulation_hours}h)",
-            f"Operational Costs (extrapolated: 1 year)"
+            "Operational Costs (extrapolated: 1 year)"
         ]
         total_investment = sum(initial_investment.values())
-        total_operational_sim = functional_costs["Total Cost"]
-        total_operational_year = total_operational_sim * extrapolation_factor
+        total_operational_year = functional_costs["Total Cost"] * extrapolation_factor
 
-        values = [total_investment, total_operational_sim, total_operational_year]
-        colors = ['#1f77b4', '#ff7f0e', '#ff4500']
+        values = [total_investment, total_operational_year]
+        colors = ['#1f77b4', '#ff7f0e']
 
         fig = go.Figure(data=[
             go.Bar(
@@ -761,8 +768,10 @@ class Kpis:
         ])
 
         # Add annotation explaining the extrapolation
+        hours_per_year = 365 * 24
+        simulation_hours = self.num_period
         fig.add_annotation(
-            x=2, y=total_operational_year,
+            x=1, y=total_operational_year,
             text=f"x{extrapolation_factor:.1f} factor<br>({simulation_hours}h to {hours_per_year}h)",
             showarrow=True,
             arrowhead=2,
@@ -776,7 +785,7 @@ class Kpis:
 
         fig.update_layout(
             template="ggplot2",
-            title="Initial Investment vs Operational Costs Comparison<br><sub>Operational costs shown for simulation period and extrapolated to 1 year</sub>",
+            title="Initial Investment vs Operational Costs Comparison<br><sub>Operational costs extrapolated to 1 year</sub>",
             xaxis_title="Cost Type",
             yaxis_title="Cost (€)",
             yaxis=dict(showgrid=True, gridwidth=2, gridcolor="LightGrey"),
@@ -792,11 +801,7 @@ class Kpis:
         kpis = self.calculate_functional_kpis()
         initial_investment = kpis["Initial Investment"]
         functional_costs = kpis["Functional Costs"]
-
-        # Extrapolate operational costs to 1 year
-        simulation_hours = self.num_period
-        hours_per_year = 365 * 24
-        extrapolation_factor = hours_per_year / simulation_hours
+        extrapolation_factor = kpis["extrapolation_factor"]
 
         labels = list(initial_investment.keys()) + [
             "Fuel Cost (1 year)", "Navigation Cost (1 year)", "Stoppage Cost (1 year)",
